@@ -386,7 +386,7 @@
 </div>
 
 <div class="footer-note">
-  <strong>Subs (blue dot):</strong> 4th player rotates in on dead balls or at halftime. &nbsp;·&nbsp;
+  <strong>Rotating player (blue dot):</strong> 4th player rotates every few possessions — plays every game. &nbsp;·&nbsp;
   <strong>Tiebreaker:</strong> Same record → head-to-head → point differential. &nbsp;·&nbsp;
   <strong>Game format:</strong> First to 21 (win by 2) or 15-min running clock. &nbsp;·&nbsp;
   <strong>Between rounds:</strong> ~5 min to post next matchups.
@@ -453,15 +453,25 @@ function shuffle(arr) {
 function buildTeams(players) {
   const shuffled = shuffle(players);
   const n = shuffled.length;
-  const numTeams = Math.min(8, Math.floor(n/3));
+  const numTeams = Math.min(8, Math.floor(n / 3));
   if (numTeams < 2) return [];
-  const teams = Array.from({length:numTeams}, (_,i) => ({id:i+1, name:`Team ${i+1}`, players:[], sub:null}));
+
+  const remainder = n - (numTeams * 3);
+  const teams = Array.from({length: numTeams}, (_, i) => ({
+    id: i + 1, name: `Team ${i + 1}`, players: [], sub: null
+  }));
+
   let idx = 0;
-  for (let t = 0; t < numTeams && idx < shuffled.length; t++)
-    for (let p = 0; p < 3 && idx < shuffled.length; p++)
+  for (let t = 0; t < numTeams; t++)
+    for (let p = 0; p < 3 && idx < n; p++)
       teams[t].players.push(shuffled[idx++]);
-  let st = 0;
-  while (idx < shuffled.length && st < numTeams) { teams[st].sub = shuffled[idx++]; st++; }
+
+  // Remainder players become rotating 4th — still play every game
+  for (let t = 0; t < remainder && idx < n; t++)
+    teams[t].sub = shuffled[idx++];
+
+  const assigned = teams.reduce((s,t) => s + t.players.length + (t.sub?1:0), 0);
+  console.log(`${numTeams} teams, ${assigned}/${n} players assigned`);
   return teams;
 }
 
@@ -516,8 +526,8 @@ function renderTeams(teams) {
       <div class="team-num">${t.id}</div>
       <div class="team-name">${t.name}</div>
       ${t.players.map(p=>`<div class="player-row"><div class="player-dot"></div><div>${p}</div></div>`).join('')}
-      ${t.sub?`<div class="player-row"><div class="player-dot sub"></div><div>${t.sub}</div><div class="tag-sub">Sub</div></div>`:''}
-      <div class="team-count">${t.players.length} starters${t.sub?' + 1 sub':''} &nbsp;·&nbsp; <span style="color:var(--green)">${r.w}W</span> <span style="color:var(--red)">${r.l}L</span></div>
+      ${t.sub?`<div class="player-row"><div class="player-dot sub"></div><div>${t.sub}</div><div class="tag-sub">Rot.</div></div>`:''}
+      <div class="team-count">${t.players.length} starters${t.sub?' + 1 rotating':''} &nbsp;·&nbsp; <span style="color:var(--green)">${r.w}W</span> <span style="color:var(--red)">${r.l}L</span></div>
     </div>`;
   }).join('');
   document.getElementById('stat-teams').textContent = teams.length;
