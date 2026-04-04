@@ -2,15 +2,18 @@ services:
   - type: web
     name: gymjam2026
     env: static
-    buildCommand: ""
     staticPublishPath: .
+    buildCommand: ""
     routes:
       - type: rewrite
         source: /u1314
         destination: /u1314/index.html
       - type: rewrite
+        source: /u1314/
+        destination: /u1314/index.html
+      - type: rewrite
         source: /u1516
         destination: /u1516/index.html
       - type: rewrite
-        source: /
-        destination: /index.html
+        source: /u1516/
+        destination: /u1516/index.html
