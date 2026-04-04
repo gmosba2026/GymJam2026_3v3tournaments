@@ -377,7 +377,7 @@
 <!-- STATS (dynamic) -->
 <div class="stats-row" id="stats-row">
   <div class="chip"><div class="chip-val" id="stat-teams">8</div><div class="chip-lbl">Teams</div></div>
-  <div class="chip"><div class="chip-val" id="stat-players">28</div><div class="chip-lbl">Players Active</div></div>
+  <div class="chip"><div class="chip-val" id="stat-players">30</div><div class="chip-lbl">Players Active</div></div>
   <div class="chip"><div class="chip-val">4</div><div class="chip-lbl">Courts</div></div>
   <div class="chip"><div class="chip-val">4</div><div class="chip-lbl">Rounds</div></div>
   <div class="chip"><div class="chip-val">16</div><div class="chip-lbl">Total Games</div></div>
@@ -492,12 +492,13 @@
 // ── DATA ──────────────────────────────────────────────────────────────────
 const ALL_PLAYERS = [
   "Hasan Al Aidie","Nicolas Albuquerque","Jacob Anderson","Nabil Aoude",
-  "Thomas Bolan","Gianluca Boyadjian","Jack Bradley","Hans Cheng",
-  "Zack Cober","Micah Duah","Adriano Fournier","Charlie Georgeson",
-  "Noah Hossain","Avery Jenken","Subhan Khan","Harrison Kim",
-  "Rowan MacLean","Nathan Mah","Kaysan Marza","Oliver Parsons",
-  "Doruk Sari","Chase Seddigh","Arie Serr","Jacob Sourour",
-  "Adeeb Talukder","Eshan Thakur","Dylan Toko","Ryker Zubrycki"
+  "Cameron Berridge","Thomas Bolan","Gianluca Boyadjian","Jack Bradley",
+  "Hans Cheng","Zack Cober","Micah Duah","Adriano Fournier",
+  "Charlie Georgeson","Noah Hossain","Avery Jenken","Subhan Khan",
+  "Harrison Kim","Rowan MacLean","Nathan Mah","Kaysan Marza",
+  "Oliver Parsons","Gursher Salh","Doruk Sari","Chase Seddigh",
+  "Arie Serr","Jacob Sourour","Adeeb Talukder","Eshan Thakur",
+  "Dylan Toko","Ryker Zubrycki"
 ];
 
 const COLORS = [
@@ -988,7 +989,7 @@ function showRound(n) {
 
 
 // ── PIN / ORGANIZER ACCESS ────────────────────────────────────────────────
-const ORGANIZER_PIN = '2511'; // Change this to your preferred PIN
+const ORGANIZER_PIN = '1234'; // Change this to your preferred PIN
 let organizerUnlocked = false;
 
 function requestOrganizerAccess() {
