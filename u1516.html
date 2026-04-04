@@ -7,7 +7,7 @@
 
 <!-- Open Graph / Link Preview Tags -->
 <meta property="og:type" content="website">
-<meta property="og:title" content="🦖 Gym Jam U13/14 — 3v3 Ladder Tournament">
+<meta property="og:title" content="🦖 Gym Jam U15/16 — 3v3 Ladder Tournament">
 <meta property="og:description" content="Ottawa South Basketball · Swiss Ladder Format · 8 Teams · 4 Courts · Live scores & standings">
 <meta property="og:image" content="GYMJAM_IMAGE_URL">
 <meta property="og:image:width" content="1200">
@@ -15,7 +15,7 @@
 
 <!-- Twitter / iMessage fallback -->
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="🦖 Gym Jam U13/14 — 3v3 Ladder Tournament">
+<meta name="twitter:title" content="🦖 Gym Jam U15/16 — 3v3 Ladder Tournament">
 <meta name="twitter:description" content="Ottawa South Basketball · Live 3v3 Ladder · Track scores & standings">
 <meta name="twitter:image" content="GYMJAM_IMAGE_URL">
 
@@ -299,11 +299,70 @@
   .slot-loser { opacity: 0.6; }
   .card-locked { border-color: rgba(6,214,160,0.2); }
 
+
+  /* PIN MODAL */
+  .pin-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85); z-index: 2000;
+    align-items: center; justify-content: center; padding: 24px;
+  }
+  .pin-overlay.open { display: flex; }
+  .pin-box {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 32px 28px; max-width: 320px;
+    width: 100%; text-align: center;
+  }
+  .pin-title { font-family: 'Bebas Neue', sans-serif; font-size: 24px;
+    letter-spacing: 2px; color: var(--gold); margin-bottom: 8px; }
+  .pin-sub { font-size: 12px; color: var(--muted); margin-bottom: 20px;
+    font-family: 'DM Mono', monospace; }
+  .pin-input {
+    width: 100%; text-align: center; font-family: 'Bebas Neue', sans-serif;
+    font-size: 32px; letter-spacing: 8px; background: var(--court);
+    border: 1px solid var(--border); color: var(--gold); border-radius: 8px;
+    padding: 10px; outline: none; margin-bottom: 16px; letter-spacing: 10px;
+  }
+  .pin-input:focus { border-color: var(--gold); }
+  .pin-error { color: var(--red); font-family: 'DM Mono', monospace;
+    font-size: 11px; margin-bottom: 12px; min-height: 16px; }
+  .pin-btns { display: flex; gap: 10px; justify-content: center; }
+  .pin-submit {
+    font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 1px;
+    background: rgba(245,166,35,0.15); color: var(--gold);
+    border: 1px solid rgba(245,166,35,0.4); padding: 10px 24px;
+    border-radius: 6px; cursor: pointer; transition: all 0.2s; text-transform: uppercase;
+  }
+  .pin-submit:hover { background: rgba(245,166,35,0.3); }
+  .pin-cancel {
+    font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 1px;
+    background: transparent; color: var(--muted); border: 1px solid var(--border-soft);
+    padding: 10px 24px; border-radius: 6px; cursor: pointer; transition: all 0.2s; text-transform: uppercase;
+  }
+  .pin-cancel:hover { color: var(--text); }
+  .organizer-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1px;
+    color: var(--gold); background: rgba(245,166,35,0.1);
+    border: 1px solid rgba(245,166,35,0.2); padding: 4px 12px;
+    border-radius: 20px; margin-bottom: 12px; text-transform: uppercase; cursor: pointer;
+  }
+  .organizer-badge.locked { color: var(--muted); background: transparent;
+    border-color: var(--border-soft); }
+  .player-check-item .pci-toggle { display: none; }
+  .organizer-unlocked .player-check-item .pci-toggle { display: block; }
+  .organizer-unlocked .pci-toggle { display: block !important; }
+
 </style>
 </head>
 <body>
 
 <!-- HEADER -->
+<div style="position:fixed;top:12px;left:12px;z-index:999">
+  <a href="/" style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;
+  color:#5a7090;background:#162030;border:1px solid rgba(245,166,35,0.2);
+  padding:6px 12px;border-radius:4px;text-decoration:none;text-transform:uppercase">
+  ← Home</a>
+</div>
 <div class="header">
   <div class="court-lines"></div>
   <div class="logo-bar">
@@ -311,7 +370,7 @@
     <img src="data:image/jpeg;base64,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" class="logo-gymjam" alt="Gym Jam 2026">
   </div>
   <div class="badge">Ottawa South Basketball Association</div>
-  <h1>Gym Jam <em>U13/14</em> — 3v3 <em>Ladder</em></h1>
+  <h1>Gym Jam <em>U15/16</em> — 3v3 <em>Ladder</em></h1>
   <div class="header-sub">Swiss Ladder Format &nbsp;·&nbsp; 8 Teams &nbsp;·&nbsp; 4 Courts &nbsp;·&nbsp; 4 Rounds</div>
 </div>
 
@@ -336,6 +395,11 @@
 <!-- PLAYER MANAGEMENT -->
 <div class="sec">Player Management</div>
 <div class="manage-wrap">
+  <div style="margin-bottom:12px">
+    <span class="organizer-badge locked" id="organizer-badge" onclick="requestOrganizerAccess()">
+      🔒 Organizer Mode — Tap to Unlock
+    </span>
+  </div>
   <div class="manage-note">
     <strong>Organizer Tool:</strong> Tap a player's button to mark them absent. Once you've marked all no-shows, hit <strong>Rejigger Teams</strong> to redistribute available players into balanced teams and refresh the full schedule.
   </div>
@@ -392,6 +456,22 @@
   <strong>Between rounds:</strong> ~5 min to post next matchups.
 </div>
 
+
+<!-- PIN MODAL -->
+<div class="pin-overlay" id="pin-modal">
+  <div class="pin-box">
+    <div class="pin-title">🔒 Organizer Access</div>
+    <div class="pin-sub">Enter PIN to manage player attendance</div>
+    <input class="pin-input" type="password" inputmode="numeric" maxlength="4"
+      id="pin-input" placeholder="••••" onkeyup="checkPinKey(event)">
+    <div class="pin-error" id="pin-error"></div>
+    <div class="pin-btns">
+      <button class="pin-cancel" onclick="closePinModal()">Cancel</button>
+      <button class="pin-submit" onclick="submitPin()">Unlock</button>
+    </div>
+  </div>
+</div>
+
 <!-- RESET MODAL -->
 <div class="modal-overlay" id="reset-modal">
   <div class="modal-box">
@@ -411,13 +491,13 @@
 <script>
 // ── DATA ──────────────────────────────────────────────────────────────────
 const ALL_PLAYERS = [
-  "Hasan Al Aidie","Nicolas Albuquerque","Jacob Anderson","Nabil Aoude",
-  "Thomas Bolan","Gianluca Boyadjian","Jack Bradley","Hans Cheng",
-  "Zack Cober","Micah Duah","Adriano Fournier","Charlie Georgeson",
-  "Noah Hossain","Avery Jenken","Subhan Khan","Harrison Kim",
-  "Rowan MacLean","Nathan Mah","Kaysan Marza","Oliver Parsons",
-  "Doruk Sari","Chase Seddigh","Arie Serr","Jacob Sourour",
-  "Adeeb Talukder","Eshan Thakur","Dylan Toko","Ryker Zubrycki"
+  "Alexander Adaralegbe","Micah Behmann","Jackson Bolan","Noah Bown",
+  "Quinn Campbell","Jeremie Chenier Paquet","Brayden Cox","Jack Dunne",
+  "Santiago Escalante","Aidan Gaffney","Liam Gu","Aiden Lee",
+  "Daniel Marshall","Liam Merrick","Rylen Phantharangsy","Kairav Ralhan",
+  "Zeph Rao","Antoni Reitano","Max Rosher","Vincent Roy",
+  "Rashed Salman","Adam Schroeter","Miles Spencer","Silas Tustin-Graham",
+  "Qinghai Yang"
 ];
 
 const COLORS = [
@@ -904,6 +984,56 @@ function showRound(n) {
   if (panel) panel.classList.add('active');
   const tabs = document.querySelectorAll('.tab');
   if (tabs[n-1]) tabs[n-1].classList.add('active');
+}
+
+
+// ── PIN / ORGANIZER ACCESS ────────────────────────────────────────────────
+const ORGANIZER_PIN = '1234'; // Change this to your preferred PIN
+let organizerUnlocked = false;
+
+function requestOrganizerAccess() {
+  if (organizerUnlocked) {
+    lockOrganizer();
+    return;
+  }
+  document.getElementById('pin-modal').classList.add('open');
+  document.getElementById('pin-input').value = '';
+  document.getElementById('pin-error').textContent = '';
+  setTimeout(() => document.getElementById('pin-input').focus(), 100);
+}
+
+function closePinModal() {
+  document.getElementById('pin-modal').classList.remove('open');
+}
+
+function checkPinKey(e) {
+  if (e.key === 'Enter') submitPin();
+}
+
+function submitPin() {
+  const entered = document.getElementById('pin-input').value;
+  if (entered === ORGANIZER_PIN) {
+    organizerUnlocked = true;
+    closePinModal();
+    document.getElementById('player-checklist').classList.add('organizer-unlocked');
+    const badge = document.getElementById('organizer-badge');
+    badge.classList.remove('locked');
+    badge.innerHTML = '🔓 Organizer Mode — Active &nbsp;·&nbsp; Tap to Lock';
+    showToast('Organizer mode unlocked');
+  } else {
+    document.getElementById('pin-error').textContent = 'Incorrect PIN — try again';
+    document.getElementById('pin-input').value = '';
+    document.getElementById('pin-input').focus();
+  }
+}
+
+function lockOrganizer() {
+  organizerUnlocked = false;
+  document.getElementById('player-checklist').classList.remove('organizer-unlocked');
+  const badge = document.getElementById('organizer-badge');
+  badge.classList.add('locked');
+  badge.innerHTML = '🔒 Organizer Mode — Tap to Unlock';
+  showToast('Organizer mode locked');
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────
