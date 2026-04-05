@@ -584,7 +584,27 @@
 <div class="sec" id="tournament-manager-sec" style="display:none">Fun Day Sessions</div>
 <div id="tournament-manager">
   <div class="manage-note" style="margin-bottom:12px">
-    <strong style="color:#c084fc">Fun Day Dates:</strong> Create a session for any date below. Select format, create, then load to activate it.
+    <strong style="color:#c084fc">Fun Day Sessions:</strong> Add a session below, then create a 3v3 or 4v4 activity for it.
+  </div>
+  <!-- ADD SESSION FORM -->
+  <div id="add-session-panel" style="background:var(--surface);border:1px solid var(--border);border-left:3px solid #c084fc;border-radius:8px;padding:14px 16px;margin-bottom:14px">
+    <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:2px;color:#c084fc;text-transform:uppercase;margin-bottom:10px">+ New Session</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase">Date</label>
+        <input type="date" id="new-session-date" style="font-family:'DM Mono',monospace;font-size:12px;background:var(--court);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px 10px;outline:none">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase">Time</label>
+        <input type="text" id="new-session-time" placeholder="e.g. 10:00 AM – 2:00 PM" style="font-family:'DM Mono',monospace;font-size:12px;background:var(--court);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px 10px;outline:none;width:200px">
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <label style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase">Location</label>
+        <input type="text" id="new-session-location" placeholder="e.g. OSBA Gym" style="font-family:'DM Mono',monospace;font-size:12px;background:var(--court);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:6px 10px;outline:none;width:180px">
+      </div>
+      <button onclick="addDevSession()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;background:rgba(192,132,252,0.15);color:#c084fc;border:1px solid rgba(192,132,252,0.4);padding:8px 18px;border-radius:4px;cursor:pointer;transition:all 0.2s">Add Session</button>
+    </div>
+    <div id="add-session-error" style="color:var(--red);font-family:'DM Mono',monospace;font-size:11px;margin-top:8px;display:none"></div>
   </div>
   <div id="tournament-manager-list"></div>
 </div>
@@ -660,11 +680,37 @@ const ASSOCIATIONS = {
 };
 function associationLabel(abbr) { return ASSOCIATIONS[abbr] || abbr; }
 
-// ALL_PLAYERS — populated via CSV import or manual entry below
+// ALL_PLAYERS — Development program roster
 // Format: { first, last, association }
-// Example: { first:'Liam', last:'Smith', association:'OSBA' }
-let ALL_PLAYERS = [];
-// ↑ Organizer: import players via CSV in Organizer Mode, or add manually above
+// Pre-seeded players can be supplemented or overridden via CSV import in Organizer Mode.
+const SEEDED_PLAYERS = [
+  {first:'Hewitt',    last:'Chan',            association:'OSBA'},
+  {first:'Jayce',     last:'Chiv',            association:'OSBA'},
+  {first:'Alexander', last:'Comi',            association:'OSBA'},
+  {first:'Atlas',     last:'Dawson',          association:'OSBA'},
+  {first:'Donovan',   last:'Jaber',           association:'OSBA'},
+  {first:'Cyrus',     last:'Mazarei',         association:'OSBA'},
+  {first:'Clark',     last:'Michalyshyn',     association:'OSBA'},
+  {first:'Shema',     last:'Nganji',          association:'OSBA'},
+  {first:'Devin',     last:'Patel',           association:'OSBA'},
+  {first:'Jacob',     last:'Shadeed',         association:'OSBA'},
+  {first:'Beau',      last:'Singh',           association:'OSBA'},
+  {first:'Charbel',   last:'Sorghani',        association:'OSBA'},
+  {first:'Joshua',    last:'Teah',            association:'OSBA'},
+  {first:'Axl',       last:'Tieu',            association:'OSBA'},
+  {first:'July',      last:'Wang',            association:'OSBA'},
+  {first:'Nixon',     last:'Wynne-Jones',     association:'OSBA'},
+  {first:'Tristan',   last:'Zahalan',         association:'OSBA'},
+  {first:'Francisco', last:'Cruz-Tran',       association:'OSBA'},
+  {first:'Isaiah',    last:'Haley',           association:'OSBA'},
+  {first:'Emir',      last:'Hussain',         association:'OSBA'},
+  {first:'Harlynn',   last:'Lanthier',        association:'OSBA'},
+  {first:'Cameron',   last:'Mansour',         association:'OSBA'},
+  {first:'Jacob',     last:'Mansour',         association:'OSBA'},
+  {first:'Bronx',     last:'McCarney',        association:'OSBA'},
+];
+let ALL_PLAYERS = [...SEEDED_PLAYERS];
+// ↑ Organizer: add more players via CSV import in Organizer Mode (duplicates are skipped)
 
 const COLORS = [
   "#6c63ff","#e63946","#06d6a0","#f5a623","#4cc9f0","#ff6b6b","#a29bfe",
@@ -728,7 +774,8 @@ function persistState() {
       tournaments,
       absentByDate,
       playerPointsLedger,
-      activeTournamentDate
+      activeTournamentDate,
+      devSessions: DEV_SESSIONS
     }));
   } catch(e) { console.warn('persistState failed', e); }
 }
@@ -744,6 +791,9 @@ function loadPersistedState() {
     if (saved.activeTournamentDate) {
       activeTournamentDate = saved.activeTournamentDate;
       absentSet = new Set(absentByDate[activeTournamentDate] || []);
+    }
+    if (saved.devSessions && Array.isArray(saved.devSessions) && saved.devSessions.length > 0) {
+      DEV_SESSIONS = saved.devSessions;
     }
   } catch(e) { console.warn('loadPersistedState failed', e); }
 }
@@ -781,10 +831,13 @@ function createTournament(date, format) {
   if (tournaments[date]) {
     if (!confirm(`A tournament already exists for ${dateLabel(date)}. Replace it?`)) return false;
   }
+  const sessionInfo = getSessionById(date) || { time: '', location: '' };
   tournaments[date] = {
     id: `${date}-${format}`,
     date,
     format,
+    session_time: sessionInfo.time,
+    session_location: sessionInfo.location,
     status: 'draft',
     teams: [],
     scores: {1:{},2:{},3:{},4:{}},
@@ -936,21 +989,45 @@ function buildTeams(playerObjs) {
     ];
   }
 
-  const playersPerTeam = gameFormat === FORMAT.FOUR ? 4 : gameFormat === FORMAT.TWO ? 2 : 3;
-  const numTeams = Math.min(8, Math.floor(n / playersPerTeam));
-  if (numTeams < 2) return [];
+  // For 2v2 and scrimmage use simple split
+  if (gameFormat === FORMAT.TWO) {
+    const numTeams = Math.min(8, Math.floor(n / 2));
+    if (numTeams < 2) return [];
+    const remainder = n - (numTeams * 2);
+    const teams = Array.from({length:numTeams}, (_,i) => ({id:i+1,name:`Team ${i+1}`,players:[],sub:null}));
+    let idx = 0;
+    for (let t=0; t<numTeams; t++) teams[t].players.push(shuffled[idx++], shuffled[idx++]);
+    for (let t=0; t<remainder && idx<n; t++) teams[t].sub = shuffled[idx++];
+    return teams;
+  }
 
-  const remainder = n - (numTeams * playersPerTeam);
+  // 3v3: base 3, overflow to 4 — MUST produce even number of teams
+  // 4v4: base 4, overflow to 5 — MUST produce even number of teams
+  const baseSize = gameFormat === FORMAT.FOUR ? 4 : 3;
+  const maxSize  = gameFormat === FORMAT.FOUR ? 5 : 4;
+
+  // Find smallest even team count where all teams fit within [baseSize, maxSize]
+  let numTeams = 0;
+  for (let t = 2; t <= Math.floor(n / baseSize) + 2; t += 2) {
+    const minPlayers = t * baseSize;
+    const maxPlayers = t * maxSize;
+    if (n >= minPlayers && n <= maxPlayers) { numTeams = t; break; }
+  }
+  if (numTeams < 2) return []; // not enough players
+
+  // Distribute n players across numTeams as evenly as possible
+  // Some teams get baseSize, some get baseSize+1 (overflow)
+  const base = Math.floor(n / numTeams);
+  const extras = n % numTeams; // first 'extras' teams get one extra player
   const teams = Array.from({length:numTeams}, (_,i) => ({id:i+1,name:`Team ${i+1}`,players:[],sub:null}));
   let idx = 0;
-  for (let t=0; t<numTeams; t++)
-    for (let p=0; p<playersPerTeam && idx<n; p++)
-      teams[t].players.push(shuffled[idx++]);
-  for (let t=0; t<remainder && idx<n; t++)
-    teams[t].sub = shuffled[idx++];
+  for (let t = 0; t < numTeams; t++) {
+    const size = base + (t < extras ? 1 : 0);
+    for (let p = 0; p < size; p++) teams[t].players.push(shuffled[idx++]);
+  }
 
-  const assigned = teams.reduce((s,t) => s+t.players.length+(t.sub?1:0), 0);
-  console.log(`Format: ${gameFormat} | ${numTeams} teams | ${assigned}/${n} assigned`);
+  const assigned = teams.reduce((s,t) => s+t.players.length, 0);
+  console.log(`Format: ${gameFormat} | ${numTeams} teams (even) | sizes: ${teams.map(t=>t.players.length).join(',')} | ${assigned}/${n} assigned`);
   return teams;
 }
 
@@ -1272,15 +1349,56 @@ function renderLeaderboard() {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TOURNAMENT MANAGER UI
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SESSION MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════
+function addDevSession() {
+  const dateEl     = document.getElementById('new-session-date');
+  const timeEl     = document.getElementById('new-session-time');
+  const locEl      = document.getElementById('new-session-location');
+  const errEl      = document.getElementById('add-session-error');
+  const date = dateEl.value.trim();
+  const time = timeEl.value.trim();
+  const location = locEl.value.trim();
+  if (!date) { errEl.textContent = 'Date is required.'; errEl.style.display='block'; return; }
+  if (DEV_SESSIONS.find(s => s.date === date)) {
+    errEl.textContent = `A session for ${date} already exists.`; errEl.style.display='block'; return;
+  }
+  errEl.style.display = 'none';
+  const session = {
+    id: date,
+    date,
+    time: time || '',
+    location: location || '',
+    created_at: new Date().toISOString().slice(0,10)
+  };
+  DEV_SESSIONS.push(session);
+  persistState();
+  dateEl.value = ''; timeEl.value = ''; locEl.value = '';
+  updateTournamentManagerUI();
+  showToast(`Session added: ${dateLabel(date)}`);
+}
+
+function deleteDevSession(id) {
+  if (tournaments[id] && !confirm('This session has an existing tournament. Delete anyway?')) return;
+  DEV_SESSIONS = DEV_SESSIONS.filter(s => s.id !== id);
+  if (activeTournamentDate === id) activeTournamentDate = null;
+  persistState();
+  updateTournamentManagerUI();
+  showToast('Session removed');
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 function updateTournamentManagerUI() {
   const el = document.getElementById('tournament-manager-list');
   if (!el) return;
-  el.innerHTML = SESSION_DATES.map(date => {
+  el.innerHTML = getSessionDates().map(date => {
     const t = tournaments[date];
     const statusColors = {draft:'var(--muted)',in_progress:'var(--blue)',finalized:'var(--green)'};
     return `<div class="tournament-row">
       <div class="t-date">${dateLabel(date)}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--muted);margin-left:4px">${getSessionById(date)?.location||''}</div>
       ${t ? `
         <div class="t-format">${formatLabel(t.format)}</div>
         <div class="t-status" style="color:${statusColors[t.status]||'var(--muted)'}">${t.status}</div>
@@ -1298,6 +1416,7 @@ function updateTournamentManagerUI() {
              <option value="fourvfour">4v4</option>
            </select>
            <button class="t-btn t-btn-create" onclick="createAndLoadTournament('${date}')">Create</button>
+           <button class="t-btn" style="color:var(--red);border-color:rgba(230,57,70,0.3);background:rgba(230,57,70,0.08)" onclick="deleteDevSession('${date}')">Delete</button>
          </div>`}
     </div>`;
   }).join('');
@@ -1652,7 +1771,21 @@ function clearHeroImage() {
     const saved = localStorage.getItem('sb_players');
     if (saved) {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) parsed.forEach(p => ALL_PLAYERS.push(p));
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Use saved list but merge any seeded players not yet in saved list
+        const savedKeys = new Set(parsed.map(p => `${p.first.toLowerCase()}|${p.last.toLowerCase()}`));
+        ALL_PLAYERS.length = 0;
+        parsed.forEach(p => ALL_PLAYERS.push(p));
+        SEEDED_PLAYERS.forEach(p => {
+          const k = `${p.first.toLowerCase()}|${p.last.toLowerCase()}`;
+          if (!savedKeys.has(k)) ALL_PLAYERS.push(p);
+        });
+        // Persist merged list
+        localStorage.setItem('sb_players', JSON.stringify(ALL_PLAYERS));
+      }
+    } else {
+      // No saved data — persist seeds as initial state
+      localStorage.setItem('sb_players', JSON.stringify(ALL_PLAYERS));
     }
   } catch(e) {}
 })();
