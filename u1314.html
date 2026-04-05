@@ -387,6 +387,41 @@
   .scrimmage-active #schedule-container,
   .scrimmage-active .sec.schedule-sec { display: none; }
 
+
+  /* TOURNAMENT MANAGER */
+  #tournament-manager { display: none; margin: 0 24px; }
+  .tournament-row {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 10px 14px; background: var(--surface);
+    border: 1px solid var(--border-soft); border-radius: 6px; margin-bottom: 6px;
+  }
+  .t-date { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text);
+    letter-spacing: 0.5px; min-width: 130px; }
+  .t-format { font-family: 'Bebas Neue', sans-serif; font-size: 16px; color: var(--gold);
+    min-width: 50px; }
+  .t-status { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1px;
+    text-transform: uppercase; min-width: 90px; }
+  .t-actions { display: flex; gap: 6px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+  .t-btn { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1px;
+    text-transform: uppercase; padding: 5px 12px; border-radius: 4px;
+    border: 1px solid; cursor: pointer; transition: all 0.2s; }
+  .t-btn-create { color: var(--blue); border-color: rgba(76,201,240,0.3); background: rgba(76,201,240,0.08); }
+  .t-btn-create:hover { background: rgba(76,201,240,0.2); }
+  .t-btn-load { color: var(--gold); border-color: rgba(245,166,35,0.3); background: rgba(245,166,35,0.08); }
+  .t-btn-load:hover { background: rgba(245,166,35,0.2); }
+  .t-btn-finalize { color: var(--green); border-color: rgba(6,214,160,0.3); background: rgba(6,214,160,0.08); }
+  .t-btn-finalize:hover { background: rgba(6,214,160,0.2); }
+  .t-btn-recalc { color: var(--muted); border-color: var(--border-soft); background: transparent; }
+  .t-btn-recalc:hover { color: var(--text); }
+  .t-fmt-select { font-family: 'DM Mono', monospace; font-size: 10px; background: var(--surface2);
+    color: var(--text); border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 8px; outline: none; cursor: pointer; }
+  /* LEADERBOARD */
+  #leaderboard-content { padding: 0; }
+  /* 2v2 button */
+  .active-two { background: rgba(253,121,168,0.15) !important; color: #fd79a8 !important;
+    border-color: rgba(253,121,168,0.4) !important; font-weight: 600 !important; }
+
 </style>
 </head>
 <body>
@@ -444,6 +479,7 @@
     <div class="format-btns">
       <button class="format-btn active-three" id="btn-three" onclick="setFormat('threevthree')">3v3 Ladder</button>
       <button class="format-btn" id="btn-four" onclick="setFormat('fourvfour')">4v4 Ladder</button>
+      <button class="format-btn" id="btn-two" onclick="setFormat('twovtwo')">2v2</button>
       <button class="format-btn" id="btn-scrimmage" onclick="setFormat('scrimmage')">2-Team Scrimmage</button>
     </div>
   </div>
@@ -469,6 +505,22 @@
 </div>
 
 <!-- TEAMS -->
+
+<!-- TOURNAMENT MANAGER -->
+<div class="sec" id="tournament-manager-sec" style="display:none">Tournament Sessions</div>
+<div id="tournament-manager">
+  <div class="manage-note" style="margin-bottom:12px">
+    <strong style="color:#c084fc">Session Dates:</strong> Create a tournament for any session date below. Select format, create, then load to activate it.
+  </div>
+  <div id="tournament-manager-list"></div>
+</div>
+
+<!-- LEADERBOARD -->
+<div class="sec" id="leaderboard-sec">Season Leaderboard</div>
+<div style="padding:0 24px" id="leaderboard-wrap">
+  <div id="leaderboard-content"></div>
+</div>
+
 <div class="sec">Rosters</div>
 <div class="teams-grid" id="teams-grid"></div>
 
@@ -542,7 +594,9 @@
 </div>
 
 <script>
-// ── DATA ──────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════
 const ALL_PLAYERS = [
   "Hasan Al Aidie","Nicolas Albuquerque","Jacob Anderson","Nabil Aoude",
   "Cameron Berridge","Thomas Bolan","Gianluca Boyadjian","Jack Bradley",
@@ -555,88 +609,254 @@ const ALL_PLAYERS = [
 ];
 
 const COLORS = [
-  "#6c63ff","#e63946","#06d6a0","#f5a623","#4cc9f0",
-  "#ff6b6b","#a29bfe","#fd79a8","#00b894","#fdcb6e",
-  "#e17055","#74b9ff","#55efc4","#fab1a0","#81ecec",
-  "#636e72","#b2bec3","#7f8c8d","#2d3436","#0984e3",
-  "#d63031","#6ab04c","#f9ca24","#686de0","#30336b",
-  "#be2edd","#22a6b3","#f0932b"
+  "#6c63ff","#e63946","#06d6a0","#f5a623","#4cc9f0","#ff6b6b","#a29bfe",
+  "#fd79a8","#00b894","#fdcb6e","#e17055","#74b9ff","#55efc4","#fab1a0",
+  "#81ecec","#636e72","#b2bec3","#7f8c8d","#2d3436","#0984e3","#d63031",
+  "#6ab04c","#f9ca24","#686de0","#30336b","#be2edd","#22a6b3","#f0932b",
+  "#c44569","#40739e"
 ];
 
-let absentSet = new Set();
+// FORMAT ENUM
+const FORMAT = { TWO: 'twovtwo', THREE: 'threevthree', FOUR: 'fourvfour', SCRIMMAGE: 'scrimmage' };
 
-// FORMAT STATE
-// Enum: 'threevthree' | 'fourvfour' | 'scrimmage'
-const FORMAT = { THREE: 'threevthree', FOUR: 'fourvfour', SCRIMMAGE: 'scrimmage' };
+// POINTS MODEL — per format, per placement
+const POINTS_MODEL = {
+  [FORMAT.THREE]: { 1: 4, 2: 3, 3: 2, 4: 1, 5: 1, 6: 1, 7: 1, 8: 1 },
+  [FORMAT.TWO]:   { winner: 4, loser: 2 },
+  [FORMAT.FOUR]:  null  // extensible — no approved model yet
+};
+
+// SESSION DATES
+const SESSION_DATES = [
+  '2026-04-07','2026-04-13','2026-04-14','2026-04-18',
+  '2026-04-20','2026-04-25','2026-05-02','2026-05-04',
+  '2026-05-09','2026-05-12','2026-05-19','2026-05-23'
+];
+
+// TOURNAMENT STORE — keyed by date
+// tournament = { date, format, status: 'draft'|'in_progress'|'finalized',
+//                teams[], scores{}, matchups{}, records{}, byeTeams{},
+//                placements{teamId: rank}, pointsLedger[] }
+let tournaments = {};  // date -> tournament object
+
+// ACTIVE TOURNAMENT (currently selected date)
+let activeTournamentDate = null;
+
+// RUNTIME STATE (mirrors active tournament)
+let absentSet = new Set();
 let gameFormat = FORMAT.THREE;
 let currentTeams = [];
-let scores = { 1: {}, 2: {}, 3: {}, 4: {} };
-let matchups = { 1: [], 2: [], 3: [], 4: [] };
+let scores = {1:{}, 2:{}, 3:{}, 4:{}};
+let matchups = {1:[], 2:[], 3:[], 4:[]};
 let records = {};
-let byeTeams = { 1: null, 2: null, 3: null, 4: null };
+let byeTeams = {1:null, 2:null, 3:null, 4:null};
 
-// ── UTILITIES ─────────────────────────────────────────────────────────────
-function initials(name) { return name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase(); }
-function lastName(name) { const p = name.split(' '); return p[p.length-1]; }
-function teamLastNames(team) { return team.players.map(p => lastName(p)).join(' / '); }
+// ORGANIZER
+const ORGANIZER_PIN = '2511';
+let organizerUnlocked = false;
 
+// PLAYER POINTS LEDGER — aggregated across all tournaments
+// { playerName -> [ {date, format, placement, points, tournamentId} ] }
+let playerPointsLedger = {};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════════════════════
+function initials(name) { return name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase(); }
+function lastName(name) { const p=name.split(' '); return p[p.length-1]; }
+function teamLastNames(team) { return team.players.map(p=>lastName(p)).join(' / '); }
 function shuffle(arr) {
-  const a = [...arr];
-  for (let i = a.length-1; i > 0; i--) {
-    const j = Math.floor(Math.random()*(i+1));
-    [a[i],a[j]] = [a[j],a[i]];
-  }
+  const a=[...arr];
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
   return a;
+}
+function formatLabel(fmt) {
+  return {[FORMAT.TWO]:'2v2',[FORMAT.THREE]:'3v3',[FORMAT.FOUR]:'4v4',[FORMAT.SCRIMMAGE]:'Scrimmage'}[fmt]||fmt;
+}
+function dateLabel(d) {
+  const dt = new Date(d+'T12:00:00');
+  return dt.toLocaleDateString('en-CA',{weekday:'short',month:'short',day:'numeric'});
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TOURNAMENT STORE
+// ═══════════════════════════════════════════════════════════════════════════
+function createTournament(date, format) {
+  if (tournaments[date]) {
+    if (!confirm(`A tournament already exists for ${dateLabel(date)}. Replace it?`)) return false;
+  }
+  tournaments[date] = {
+    id: `${date}-${format}`,
+    date,
+    format,
+    status: 'draft',
+    teams: [],
+    scores: {1:{},2:{},3:{},4:{}},
+    matchups: {1:[],2:[],3:[],4:[]},
+    records: {},
+    byeTeams: {1:null,2:null,3:null,4:null},
+    placements: {},   // teamId -> rank (1-8)
+    pointsLedger: [], // [{playerName, placement, points, teamId}]
+    pointsFinalized: false
+  };
+  return true;
+}
+
+function loadTournament(date) {
+  const t = tournaments[date];
+  if (!t) return false;
+  activeTournamentDate = date;
+  gameFormat = t.format;
+  currentTeams = t.teams;
+  scores = t.scores;
+  matchups = t.matchups;
+  records = t.records;
+  byeTeams = t.byeTeams;
+  return true;
+}
+
+function saveTournamentState() {
+  if (!activeTournamentDate) return;
+  const t = tournaments[activeTournamentDate];
+  if (!t) return;
+  t.teams = currentTeams;
+  t.scores = scores;
+  t.matchups = matchups;
+  t.records = records;
+  t.byeTeams = byeTeams;
+}
+
+function getTournamentStatus(date) {
+  return tournaments[date]?.status || null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POINTS ENGINE
+// ═══════════════════════════════════════════════════════════════════════════
+function computePlacements(teamsArr, scoresObj, matchupsObj) {
+  // Sort teams by win record descending
+  const sorted = [...teamsArr].sort((a,b) => {
+    const rA = records[a.id]||{w:0,l:0}, rB = records[b.id]||{w:0,l:0};
+    return (rB.w - rA.w) || (rA.l - rB.l);
+  });
+  const placements = {};
+  sorted.forEach((t, i) => { placements[t.id] = i + 1; });
+  return placements;
+}
+
+function awardPoints(date) {
+  const t = tournaments[date];
+  if (!t) return { error: 'Tournament not found' };
+  if (t.status !== 'finalized') return { error: 'Tournament not finalized' };
+  if (t.pointsFinalized) return { error: 'Points already awarded — use recalculate to update' };
+
+  const model = POINTS_MODEL[t.format];
+  const ledger = [];
+
+  if (t.format === FORMAT.THREE || t.format === FORMAT.FOUR) {
+    const placements = computePlacements(t.teams, t.scores, t.matchups);
+    t.placements = placements;
+    t.teams.forEach(team => {
+      const rank = placements[team.id];
+      const pts = model ? (model[rank] || 0) : 0;
+      const allPlayers = [...team.players, ...(team.sub ? [team.sub] : [])];
+      allPlayers.forEach(playerName => {
+        ledger.push({ playerName, placement: rank, points: pts, teamId: team.id, teamName: team.name });
+        // Accumulate to global ledger
+        if (!playerPointsLedger[playerName]) playerPointsLedger[playerName] = [];
+        playerPointsLedger[playerName].push({ date, format: t.format, placement: rank, points: pts, tournamentId: t.id });
+      });
+    });
+  } else if (t.format === FORMAT.TWO) {
+    // 2v2: winner/loser from score entry
+    t.teams.forEach((team, i) => {
+      const r = records[team.id] || {w:0,l:0};
+      const isWinner = r.w > r.l;
+      const pts = isWinner ? POINTS_MODEL[FORMAT.TWO].winner : POINTS_MODEL[FORMAT.TWO].loser;
+      const allPlayers = [...team.players, ...(team.sub ? [team.sub] : [])];
+      allPlayers.forEach(playerName => {
+        ledger.push({ playerName, placement: isWinner?'winner':'loser', points: pts, teamId: team.id });
+        if (!playerPointsLedger[playerName]) playerPointsLedger[playerName] = [];
+        playerPointsLedger[playerName].push({ date, format: t.format, placement: isWinner?'winner':'loser', points: pts, tournamentId: t.id });
+      });
+    });
+  }
+
+  t.pointsLedger = ledger;
+  t.pointsFinalized = true;
+  return { success: true, awarded: ledger.length, ledger };
+}
+
+function recalculatePoints(date) {
+  const t = tournaments[date];
+  if (!t) return;
+  if (!t.pointsFinalized) { awardPoints(date); return; }
+
+  // Remove previous entries for this tournament from global ledger
+  Object.keys(playerPointsLedger).forEach(name => {
+    playerPointsLedger[name] = playerPointsLedger[name].filter(e => e.tournamentId !== t.id);
+  });
+  t.pointsLedger = [];
+  t.pointsFinalized = false;
+  awardPoints(date);
+}
+
+function getPlayerTotalPoints(playerName) {
+  return (playerPointsLedger[playerName] || []).reduce((s,e) => s + e.points, 0);
+}
+
+function getLeaderboard() {
+  return ALL_PLAYERS
+    .map(name => ({ name, total: getPlayerTotalPoints(name), entries: playerPointsLedger[name]||[] }))
+    .filter(p => p.total > 0)
+    .sort((a,b) => b.total - a.total);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEAM BUILDING
+// ═══════════════════════════════════════════════════════════════════════════
+function initRecords(teams) {
+  records = {};
+  teams.forEach(t => { records[t.id] = {w:0,l:0}; });
+}
+function getRecord(teamId) {
+  const r = records[teamId]||{w:0,l:0};
+  return `${r.w}-${r.l}`;
 }
 
 function buildTeams(players) {
   const shuffled = shuffle(players);
   const n = shuffled.length;
 
-  // SCRIMMAGE: 2 equal teams, all players split evenly
   if (gameFormat === FORMAT.SCRIMMAGE) {
-    const half = Math.ceil(n / 2);
+    const half = Math.ceil(n/2);
     return [
-      { id: 1, name: 'Team A', players: shuffled.slice(0, half), sub: null },
-      { id: 2, name: 'Team B', players: shuffled.slice(half), sub: null }
+      {id:1,name:'Team A',players:shuffled.slice(0,half),sub:null},
+      {id:2,name:'Team B',players:shuffled.slice(half),sub:null}
     ];
   }
 
-  // 4v4: teams of 4, remainder distributed
-  const playersPerTeam = gameFormat === FORMAT.FOUR ? 4 : 3;
+  const playersPerTeam = gameFormat === FORMAT.FOUR ? 4 : gameFormat === FORMAT.TWO ? 2 : 3;
   const numTeams = Math.min(8, Math.floor(n / playersPerTeam));
   if (numTeams < 2) return [];
 
   const remainder = n - (numTeams * playersPerTeam);
-  const teams = Array.from({length: numTeams}, (_, i) => ({
-    id: i + 1, name: `Team ${i + 1}`, players: [], sub: null
-  }));
-
+  const teams = Array.from({length:numTeams}, (_,i) => ({id:i+1,name:`Team ${i+1}`,players:[],sub:null}));
   let idx = 0;
-  for (let t = 0; t < numTeams; t++)
-    for (let p = 0; p < playersPerTeam && idx < n; p++)
+  for (let t=0; t<numTeams; t++)
+    for (let p=0; p<playersPerTeam && idx<n; p++)
       teams[t].players.push(shuffled[idx++]);
-
-  // Remaining players as rotating subs
-  for (let t = 0; t < remainder && idx < n; t++)
+  for (let t=0; t<remainder && idx<n; t++)
     teams[t].sub = shuffled[idx++];
 
-  const assigned = teams.reduce((s,t) => s + t.players.length + (t.sub?1:0), 0);
+  const assigned = teams.reduce((s,t) => s+t.players.length+(t.sub?1:0), 0);
   console.log(`Format: ${gameFormat} | ${numTeams} teams | ${assigned}/${n} assigned`);
   return teams;
 }
 
-// ── RECORDS ───────────────────────────────────────────────────────────────
-function initRecords(teams) {
-  records = {};
-  teams.forEach(t => { records[t.id] = {w:0, l:0}; });
-}
-function getRecord(teamId) {
-  const r = records[teamId] || {w:0,l:0};
-  return `${r.w}-${r.l}`;
-}
-
-// ── CHECKLIST ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// CHECKLIST
+// ═══════════════════════════════════════════════════════════════════════════
 function renderChecklist() {
   const el = document.getElementById('player-checklist');
   el.innerHTML = ALL_PLAYERS.map((p,i) => {
@@ -649,47 +869,48 @@ function renderChecklist() {
   }).join('');
   const count = absentSet.size;
   const el2 = document.getElementById('absent-count');
-  el2.style.display = count > 0 ? 'block' : 'none';
+  el2.style.display = count>0?'block':'none';
   el2.textContent = `${count} absent`;
 }
-
 function togglePlayer(idx) {
   const p = ALL_PLAYERS[idx];
   if (absentSet.has(p)) absentSet.delete(p); else absentSet.add(p);
   renderChecklist();
 }
-
 function restoreAll() { absentSet.clear(); renderChecklist(); rejiggerTeams(); }
 
-// ── RENDER TEAMS ──────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDER TEAMS
+// ═══════════════════════════════════════════════════════════════════════════
 function renderTeams(teams) {
   currentTeams = teams;
   const grid = document.getElementById('teams-grid');
   if (!teams.length) {
-    grid.innerHTML = '<div style="padding:20px;color:var(--muted);font-family:DM Mono,monospace;font-size:12px;grid-column:1/-1">Not enough players.</div>';
+    grid.innerHTML = '<div style="padding:20px;color:var(--muted);font-family:DM Mono,monospace;font-size:12px;grid-column:1/-1">Not enough players for this format.</div>';
     document.getElementById('stat-teams').textContent = '0';
     document.getElementById('stat-players').textContent = ALL_PLAYERS.length - absentSet.size;
     return;
   }
   grid.innerHTML = teams.map(t => {
-    const r = records[t.id] || {w:0,l:0};
-    return `<div class="team-card ${t.players.length<3?'short-handed':''}">
+    const r = records[t.id]||{w:0,l:0};
+    return `<div class="team-card ${t.players.length<(gameFormat===FORMAT.FOUR?4:3)?'short-handed':''}">
       <div class="team-num">${t.id}</div>
       <div class="team-name">${t.name}</div>
       ${t.players.map(p=>`<div class="player-row"><div class="player-dot"></div><div>${p}</div></div>`).join('')}
       ${t.sub?`<div class="player-row"><div class="player-dot sub"></div><div>${t.sub}</div><div class="tag-sub">Rot.</div></div>`:''}
-      <div class="team-count">${t.players.length} starters${t.sub?' + 1 rotating':''} &nbsp;·&nbsp; <span style="color:var(--green)">${r.w}W</span> <span style="color:var(--red)">${r.l}L</span></div>
+      <div class="team-count">${t.players.length}p${t.sub?' + 1 rot.':''} &nbsp;·&nbsp; <span style="color:var(--green)">${r.w}W</span> <span style="color:var(--red)">${r.l}L</span></div>
     </div>`;
   }).join('');
   document.getElementById('stat-teams').textContent = teams.length;
   document.getElementById('stat-players').textContent = ALL_PLAYERS.length - absentSet.size;
 }
 
-// ── SCORE INPUT HTML ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// SCORE INPUT
+// ═══════════════════════════════════════════════════════════════════════════
 function scoreInputHTML(round, courtIdx, teamA, teamB) {
-  const existing = scores[round][courtIdx] || {};
+  const existing = scores[round][courtIdx]||{};
   const locked = existing.locked;
-
   if (locked) {
     const winA = existing.scoreA > existing.scoreB;
     return `<div class="score-entry locked">
@@ -707,9 +928,8 @@ function scoreInputHTML(round, courtIdx, teamA, teamB) {
       </div>
     </div>`;
   }
-
-  const sA = existing.scoreA !== undefined ? existing.scoreA : '';
-  const sB = existing.scoreB !== undefined ? existing.scoreB : '';
+  const sA = existing.scoreA!==undefined?existing.scoreA:'';
+  const sB = existing.scoreB!==undefined?existing.scoreB:'';
   const key = `${round}_${courtIdx}`;
   return `<div class="score-entry">
     <div class="score-input-row">
@@ -725,22 +945,18 @@ function scoreInputHTML(round, courtIdx, teamA, teamB) {
   </div>`;
 }
 
-// ── SUBMIT / UNLOCK SCORE ─────────────────────────────────────────────────
 function submitScore(round, courtIdx, teamAId, teamBId) {
   const key = `${round}_${courtIdx}`;
   const aEl = document.getElementById(`score-${key}-a`);
   const bEl = document.getElementById(`score-${key}-b`);
-  if (!aEl || !bEl) return;
-  const sA = parseInt(aEl.value);
-  const sB = parseInt(bEl.value);
-  if (isNaN(sA) || isNaN(sB) || aEl.value==='' || bEl.value==='') { showToast('Enter scores for both teams'); return; }
-  if (sA === sB) { showToast('No ties allowed — one team must win'); return; }
-
-  scores[round][courtIdx] = {scoreA:sA, scoreB:sB, locked:true, teamAId, teamBId};
-
-  if (sA > sB) { records[teamAId].w++; records[teamBId].l++; }
-  else         { records[teamBId].w++; records[teamAId].l++; }
-
+  if (!aEl||!bEl) return;
+  const sA = parseInt(aEl.value), sB = parseInt(bEl.value);
+  if (isNaN(sA)||isNaN(sB)||aEl.value===''||bEl.value==='') { showToast('Enter scores for both teams'); return; }
+  if (sA===sB) { showToast('No ties — one team must win'); return; }
+  scores[round][courtIdx] = {scoreA:sA,scoreB:sB,locked:true,teamAId,teamBId};
+  if (sA>sB) { records[teamAId].w++; records[teamBId].l++; }
+  else       { records[teamBId].w++; records[teamAId].l++; }
+  saveTournamentState();
   renderTeams(currentTeams);
   renderRoundPanel(round);
   checkAndBuildNextRound(round);
@@ -748,459 +964,460 @@ function submitScore(round, courtIdx, teamAId, teamBId) {
 
 function unlockScore(round, courtIdx) {
   const s = scores[round][courtIdx];
-  if (!s || !s.locked) return;
-  // Reverse the record change
-  if (s.scoreA > s.scoreB) { records[s.teamAId].w = Math.max(0,records[s.teamAId].w-1); records[s.teamBId].l = Math.max(0,records[s.teamBId].l-1); }
-  else                      { records[s.teamBId].w = Math.max(0,records[s.teamBId].w-1); records[s.teamAId].l = Math.max(0,records[s.teamAId].l-1); }
-  scores[round][courtIdx] = {...s, locked:false};
-  // Clear all downstream rounds since they depended on this result
+  if (!s||!s.locked) return;
+  if (s.scoreA>s.scoreB) { records[s.teamAId].w=Math.max(0,records[s.teamAId].w-1); records[s.teamBId].l=Math.max(0,records[s.teamBId].l-1); }
+  else                   { records[s.teamBId].w=Math.max(0,records[s.teamBId].w-1); records[s.teamAId].l=Math.max(0,records[s.teamAId].l-1); }
+  scores[round][courtIdx] = {...s,locked:false};
   clearRoundsAfter(round);
   renderTeams(currentTeams);
   renderRoundPanel(round);
 }
 
 function clearRoundsAfter(round) {
-  for (let r = round+1; r <= 4; r++) {
-    // Reverse all locked scores in those rounds
-    const ms = matchups[r] || [];
-    Object.entries(scores[r]).forEach(([ci, s]) => {
-      if (s && s.locked) {
-        if (s.scoreA > s.scoreB) { if(records[s.teamAId]) records[s.teamAId].w = Math.max(0,records[s.teamAId].w-1); if(records[s.teamBId]) records[s.teamBId].l = Math.max(0,records[s.teamBId].l-1); }
-        else { if(records[s.teamBId]) records[s.teamBId].w = Math.max(0,records[s.teamBId].w-1); if(records[s.teamAId]) records[s.teamAId].l = Math.max(0,records[s.teamAId].l-1); }
+  for (let r=round+1; r<=4; r++) {
+    Object.entries(scores[r]).forEach(([ci,s]) => {
+      if (s&&s.locked) {
+        if (s.scoreA>s.scoreB) { if(records[s.teamAId]) records[s.teamAId].w=Math.max(0,records[s.teamAId].w-1); if(records[s.teamBId]) records[s.teamBId].l=Math.max(0,records[s.teamBId].l-1); }
+        else { if(records[s.teamBId]) records[s.teamBId].w=Math.max(0,records[s.teamBId].w-1); if(records[s.teamAId]) records[s.teamAId].l=Math.max(0,records[s.teamAId].l-1); }
       }
     });
-    scores[r] = {};
-    matchups[r] = [];
+    scores[r]={}; matchups[r]=[];
   }
-  for (let r = round+1; r <= 4; r++) renderRoundPanel(r);
+  for (let r=round+1; r<=4; r++) renderRoundPanel(r);
   renderTeams(currentTeams);
 }
 
-// ── BUILD NEXT ROUND ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// ROUND PROGRESSION
+// ═══════════════════════════════════════════════════════════════════════════
 function checkAndBuildNextRound(completedRound) {
   const ms = matchups[completedRound];
-  if (!ms || ms.length === 0) return;
-  const allDone = ms.every((_,i) => scores[completedRound][i] && scores[completedRound][i].locked);
+  if (!ms||ms.length===0) return;
+  const allDone = ms.every((_,i) => scores[completedRound][i]&&scores[completedRound][i].locked);
   if (!allDone) return;
-  if (completedRound >= 4) { renderFinalStandings(); return; }
-
-  const nextRound = completedRound + 1;
-  const winners = [], losers = [];
-
+  if (completedRound>=4) { finalizeTournament(); return; }
+  const nextRound = completedRound+1;
+  const winners=[],losers=[];
   ms.forEach((m,i) => {
     const s = scores[completedRound][i];
-    winners.push(s.scoreA > s.scoreB ? m.teamA : m.teamB);
-    losers.push(s.scoreA > s.scoreB ? m.teamB : m.teamA);
+    winners.push(s.scoreA>s.scoreB?m.teamA:m.teamB);
+    losers.push(s.scoreA>s.scoreB?m.teamB:m.teamA);
   });
-
-  // Include bye team from this round as a "mid" — give them a free win
   const bye = byeTeams[completedRound];
   if (bye) { records[bye.id].w++; winners.push(bye); }
-
   const byRec = arr => [...arr].sort((a,b) => {
-    const rA = records[a.id]||{w:0,l:0}, rB = records[b.id]||{w:0,l:0};
-    return (rB.w - rB.l) - (rA.w - rA.l);
+    const rA=records[a.id]||{w:0,l:0},rB=records[b.id]||{w:0,l:0};
+    return (rB.w-rB.l)-(rA.w-rA.l);
   });
-
-  const sW = byRec(winners);
-  const sL = byRec(losers);
-  const newMatchups = [];
-  let nextBye = null;
-
-  // Pair winners
-  for (let i = 0; i < sW.length-1; i+=2)
-    newMatchups.push({teamA:sW[i], teamB:sW[i+1], tier:'winners'});
-  if (sW.length % 2 === 1) nextBye = sW[sW.length-1]; // leftover winner gets bye
-
-  // Pair losers
-  for (let i = 0; i < sL.length-1; i+=2)
-    newMatchups.push({teamA:sL[i], teamB:sL[i+1], tier:'losers'});
-  if (sL.length % 2 === 1) {
-    // Cross leftover loser with leftover winner if both exist
-    if (nextBye) { newMatchups.push({teamA:nextBye, teamB:sL[sL.length-1], tier:'mid'}); nextBye = null; }
-    else nextBye = sL[sL.length-1];
+  const sW=byRec(winners),sL=byRec(losers);
+  const newMatchups=[]; let nextBye=null;
+  for (let i=0;i<sW.length-1;i+=2) newMatchups.push({teamA:sW[i],teamB:sW[i+1],tier:'winners'});
+  if (sW.length%2===1) nextBye=sW[sW.length-1];
+  for (let i=0;i<sL.length-1;i+=2) newMatchups.push({teamA:sL[i],teamB:sL[i+1],tier:'losers'});
+  if (sL.length%2===1) {
+    if (nextBye) { newMatchups.push({teamA:nextBye,teamB:sL[sL.length-1],tier:'mid'}); nextBye=null; }
+    else nextBye=sL[sL.length-1];
   }
-
-  byeTeams[nextRound] = nextBye;
-  matchups[nextRound] = newMatchups;
+  byeTeams[nextRound]=nextBye;
+  matchups[nextRound]=newMatchups;
+  saveTournamentState();
   renderRoundPanel(nextRound);
   showRound(nextRound);
 }
 
-// ── TIER LABEL ────────────────────────────────────────────────────────────
 function tierLabel(tier) {
-  return {
-    winners: '<div class="tier-label tier-winners">Winners Bracket</div>',
-    losers:  '<div class="tier-label tier-losers">Losers Bracket</div>',
-    mid:     '<div class="tier-label tier-mid">Mixed</div>',
-    open:    '<div class="tier-label tier-open">Open Draw</div>',
-    champ:   '<div class="tier-label tier-champ">Championship</div>',
-  }[tier] || '<div class="tier-label tier-open">Open Draw</div>';
+  return {winners:'<div class="tier-label tier-winners">Winners Bracket</div>',losers:'<div class="tier-label tier-losers">Losers Bracket</div>',mid:'<div class="tier-label tier-mid">Mixed</div>',open:'<div class="tier-label tier-open">Open Draw</div>',champ:'<div class="tier-label tier-champ">Championship</div>'}[tier]||'<div class="tier-label tier-open">Open Draw</div>';
 }
-
 function courtNameForRound4(idx) {
-  return ['🏆 Court 1 — Championship','🥈 Court 2 — 3rd Place','Court 3 — 5th Place','Court 4 — 7th Place'][idx] || `Court ${idx+1}`;
+  return ['🏆 Court 1 — Championship','🥈 Court 2 — 3rd Place','Court 3 — 5th Place','Court 4 — 7th Place'][idx]||`Court ${idx+1}`;
 }
 
-// ── RENDER ROUND PANEL ────────────────────────────────────────────────────
 function renderRoundPanel(round) {
   const panel = document.getElementById(`round-${round}`);
   if (!panel) return;
   const ms = matchups[round];
-
-  if (!ms || ms.length === 0) {
-    const msgs = {2:'Waiting for Round 1 results…',3:'Waiting for Round 2 results…',4:'Waiting for Round 3 results…'};
-    panel.innerHTML = `<div style="padding:0 24px"><div class="round-note" style="color:var(--gold)">${msgs[round]||''}</div></div>`;
+  if (!ms||ms.length===0) {
+    const msgs={2:'Waiting for Round 1…',3:'Waiting for Round 2…',4:'Waiting for Round 3…'};
+    panel.innerHTML=`<div style="padding:0 24px"><div class="round-note" style="color:var(--gold)">${msgs[round]||''}</div></div>`;
     return;
   }
-
-  const notes = {
-    1:'ROUND 1 — Open draw · Enter scores after each game to advance the ladder',
-    2:'ROUND 2 — Winners vs Winners · Losers vs Losers',
-    3:'ROUND 3 — Swiss ladder tightens · 2-0 · 1-1 · 0-2 tiers',
-    4:'ROUND 4 — Final placement games · Every court decides a finishing position'
-  };
-
-  let html = `<div class="round-note">${notes[round]}</div><div class="matchups-grid">`;
-
+  const notes={1:'ROUND 1 — Open draw · Enter scores to advance',2:'ROUND 2 — Winners vs Winners · Losers vs Losers',3:'ROUND 3 — Swiss ladder tightens',4:'ROUND 4 — Final placement games'};
+  let html=`<div class="round-note">${notes[round]}</div><div class="matchups-grid">`;
   ms.forEach((m,i) => {
-    const s = scores[round][i] || {};
-    const locked = s.locked;
-    const winAId = locked ? (s.scoreA > s.scoreB ? s.teamAId : s.teamBId) : null;
-    const recA = getRecord(m.teamA.id);
-    const recB = getRecord(m.teamB.id);
-
-    // Determine tier label for R4 by position
-    let tier = m.tier;
-    if (round === 4) {
-      tier = i === 0 ? 'champ' : i === 1 ? 'winners' : i === 2 ? 'mid' : 'losers';
-    }
-    const courtLabel = round === 4 ? courtNameForRound4(i) : `Court ${i+1}`;
-
-    html += `<div class="matchup-card ${locked?'card-locked':''}">
-      <div class="matchup-header">
-        <div class="court-label">${courtLabel}</div>
-        ${tierLabel(tier)}
-      </div>
+    const s=scores[round][i]||{};
+    const locked=s.locked;
+    const winAId=locked?(s.scoreA>s.scoreB?s.teamAId:s.teamBId):null;
+    const recA=getRecord(m.teamA.id),recB=getRecord(m.teamB.id);
+    let tier=m.tier;
+    if (round===4) tier=i===0?'champ':i===1?'winners':i===2?'mid':'losers';
+    const courtLabel=round===4?courtNameForRound4(i):`Court ${i+1}`;
+    html+=`<div class="matchup-card ${locked?'card-locked':''}">
+      <div class="matchup-header"><div class="court-label">${courtLabel}</div>${tierLabel(tier)}</div>
       <div class="matchup-body">
         <div class="team-vs">
           <div class="vs-slot ${locked&&winAId===m.teamA.id?'slot-winner':locked?'slot-loser':''}">
             <div class="vs-slot-label">${m.teamA.name} <span style="font-size:10px;opacity:0.6">${recA}</span></div>
             <div class="vs-slot-name">${teamLastNames(m.teamA)}</div>
-            ${m.teamA.sub?`<div class="vs-slot-players">Sub: <span class="sub-name">${lastName(m.teamA.sub)}</span></div>`:''}
+            ${m.teamA.sub?`<div class="vs-slot-players">Rot: <span class="sub-name">${lastName(m.teamA.sub)}</span></div>`:''}
           </div>
           <div class="vs-divider">VS</div>
           <div class="vs-slot ${locked&&winAId===m.teamB.id?'slot-winner':locked?'slot-loser':''}">
             <div class="vs-slot-label">${m.teamB.name} <span style="font-size:10px;opacity:0.6">${recB}</span></div>
             <div class="vs-slot-name">${teamLastNames(m.teamB)}</div>
-            ${m.teamB.sub?`<div class="vs-slot-players">Sub: <span class="sub-name">${lastName(m.teamB.sub)}</span></div>`:''}
+            ${m.teamB.sub?`<div class="vs-slot-players">Rot: <span class="sub-name">${lastName(m.teamB.sub)}</span></div>`:''}
           </div>
         </div>
-        ${scoreInputHTML(round, i, m.teamA, m.teamB)}
+        ${scoreInputHTML(round,i,m.teamA,m.teamB)}
       </div>
     </div>`;
   });
-
-  // Show bye team if any
-  const bye = byeTeams[round];
-  if (bye) {
-    html += `<div class="matchup-card" style="opacity:0.55">
-      <div class="matchup-header"><div class="court-label">BYE</div><div class="tier-label tier-mid">No Game</div></div>
-      <div class="matchup-body">
-        <div class="vs-slot">
-          <div class="vs-slot-label">${bye.name}</div>
-          <div class="vs-slot-name">${teamLastNames(bye)}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;font-family:'DM Mono',monospace">Free win this round</div>
-        </div>
-      </div>
-    </div>`;
-  }
-
-  html += '</div>';
-  panel.innerHTML = `<div style="padding:0 24px">${html}</div>`;
+  const bye=byeTeams[round];
+  if (bye) html+=`<div class="matchup-card" style="opacity:0.55"><div class="matchup-header"><div class="court-label">BYE</div><div class="tier-label tier-mid">No Game</div></div><div class="matchup-body"><div class="vs-slot"><div class="vs-slot-label">${bye.name}</div><div class="vs-slot-name">${teamLastNames(bye)}</div><div style="font-size:11px;color:var(--muted);margin-top:4px;font-family:'DM Mono',monospace">Free win this round</div></div></div></div>`;
+  html+='</div>';
+  panel.innerHTML=`<div style="padding:0 24px">${html}</div>`;
 }
 
-// ── FINAL STANDINGS ───────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// FINALIZATION + POINTS
+// ═══════════════════════════════════════════════════════════════════════════
+function finalizeTournament() {
+  renderFinalStandings();
+  if (!activeTournamentDate) return;
+  const t = tournaments[activeTournamentDate];
+  if (!t) return;
+  saveTournamentState();
+  t.status = 'finalized';
+  const result = awardPoints(activeTournamentDate);
+  if (result.success) {
+    showToast(`Tournament finalized — points awarded to ${result.awarded} players`);
+    updateTournamentManagerUI();
+    renderLeaderboard();
+  }
+}
+
 function renderFinalStandings() {
   const sorted = [...currentTeams].sort((a,b) => {
-    const rA = records[a.id]||{w:0,l:0}, rB = records[b.id]||{w:0,l:0};
-    return (rB.w - rA.w) || (rA.l - rB.l);
+    const rA=records[a.id]||{w:0,l:0},rB=records[b.id]||{w:0,l:0};
+    return (rB.w-rA.w)||(rA.l-rB.l);
   });
-  const medals = ['🏆','🥈','🥉','4th','5th','6th','7th','8th'];
-  const panel = document.getElementById('round-4');
-
-  // Get existing matchup HTML (first child div)
-  const existingHTML = panel.innerHTML;
-  // Only append once — check if standings already shown
+  const medals=['🏆','🥈','🥉','4th','5th','6th','7th','8th'];
+  const panel=document.getElementById('round-4');
   if (panel.querySelector('.standings-final')) return;
-
-  const standingsHTML = `<div class="standings-final" style="padding:0 24px;margin-top:20px">
+  const fmt=gameFormat;
+  const model=POINTS_MODEL[fmt];
+  const standingsHTML=`<div class="standings-final" style="padding:0 24px;margin-top:20px">
     <div class="round-note" style="border-left-color:var(--gold);color:var(--gold);font-size:13px">🏁 TOURNAMENT COMPLETE — Final Standings</div>
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
-      ${sorted.map((t,i) => {
-        const r = records[t.id]||{w:0,l:0};
-        const isTop3 = i < 3;
-        return `<div style="display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid ${isTop3?'rgba(245,166,35,0.3)':'var(--border-soft)'};border-radius:8px;padding:12px 16px">
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:${isTop3?'var(--gold)':'var(--muted)'};width:32px;text-align:center">${medals[i]}</div>
+      ${sorted.map((t,i)=>{
+        const r=records[t.id]||{w:0,l:0};
+        const pts=model?model[i+1]:null;
+        return `<div style="display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid ${i<3?'rgba(245,166,35,0.3)':'var(--border-soft)'};border-radius:8px;padding:12px 16px">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:${i<3?'var(--gold)':'var(--muted)'};width:32px;text-align:center">${medals[i]}</div>
           <div style="flex:1">
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;color:${isTop3?'#fff':'var(--text)'}">${t.name}</div>
-            <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">${t.players.map(p=>lastName(p)).join(' · ')}${t.sub?' · '+lastName(t.sub)+' (sub)':''}</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px">${t.name}</div>
+            <div style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">${t.players.map(p=>lastName(p)).join(' · ')}</div>
           </div>
-          <div style="font-family:'DM Mono',monospace;font-size:13px;text-align:right">
-            <span style="color:var(--green)">${r.w}W</span> <span style="color:var(--red)">${r.l}L</span>
+          <div style="text-align:right">
+            <div style="font-family:'DM Mono',monospace;font-size:13px"><span style="color:var(--green)">${r.w}W</span> <span style="color:var(--red)">${r.l}L</span></div>
+            ${pts!==null?`<div style="font-family:'Bebas Neue',sans-serif;font-size:18px;color:var(--gold)">${pts} pts</div>`:''}
           </div>
         </div>`;
       }).join('')}
     </div>
   </div>`;
-
-  panel.innerHTML = existingHTML + standingsHTML;
+  panel.innerHTML += standingsHTML;
 }
 
-// ── RENDER SCHEDULE ───────────────────────────────────────────────────────
-function renderSchedule(teams) {
-  const container = document.getElementById('schedule-container');
-  scores = {1:{}, 2:{}, 3:{}, 4:{}};
-  matchups = {1:[], 2:[], 3:[], 4:[]};
-  byeTeams = {1:null, 2:null, 3:null, 4:null};
-
-  if (teams.length < 2) {
-    container.innerHTML = '<div style="padding:0 24px 20px;color:var(--muted);font-family:DM Mono,monospace;font-size:12px">Not enough teams.</div>';
+// ═══════════════════════════════════════════════════════════════════════════
+// LEADERBOARD
+// ═══════════════════════════════════════════════════════════════════════════
+function renderLeaderboard() {
+  const el = document.getElementById('leaderboard-content');
+  if (!el) return;
+  const lb = getLeaderboard();
+  if (!lb.length) {
+    el.innerHTML = '<div style="color:var(--muted);font-family:DM Mono,monospace;font-size:12px;text-align:center;padding:20px">No points awarded yet. Finalize a tournament to generate standings.</div>';
     return;
   }
+  el.innerHTML = lb.map((p,i) => `
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-soft)">
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:20px;color:var(--gold);width:28px">${i+1}</div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:500">${p.name}</div>
+        <div style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace">
+          ${p.entries.map(e=>`${dateLabel(e.date)} ${formatLabel(e.format)} · P${e.placement} · ${e.points}pts`).join(' &nbsp;|&nbsp; ')}
+        </div>
+      </div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--gold)">${p.total}</div>
+    </div>`).join('');
+}
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TOURNAMENT MANAGER UI
+// ═══════════════════════════════════════════════════════════════════════════
+function updateTournamentManagerUI() {
+  const el = document.getElementById('tournament-manager-list');
+  if (!el) return;
+  el.innerHTML = SESSION_DATES.map(date => {
+    const t = tournaments[date];
+    const statusColors = {draft:'var(--muted)',in_progress:'var(--blue)',finalized:'var(--green)'};
+    return `<div class="tournament-row">
+      <div class="t-date">${dateLabel(date)}</div>
+      ${t ? `
+        <div class="t-format">${formatLabel(t.format)}</div>
+        <div class="t-status" style="color:${statusColors[t.status]||'var(--muted)'}">${t.status}</div>
+        <div class="t-actions">
+          ${t.status!=='finalized'?`<button class="t-btn t-btn-load" onclick="loadAndActivateTournament('${date}')">Load</button>`:''}
+          ${t.status==='in_progress'?`<button class="t-btn t-btn-finalize" onclick="finalizeTournamentByDate('${date}')">Finalize</button>`:''}
+          ${t.status==='finalized'?`<button class="t-btn t-btn-recalc" onclick="recalculatePoints('${date}');showToast('Points recalculated')">Recalc Pts</button>`:''}
+        </div>` :
+        `<div class="t-format" style="color:var(--muted)">—</div>
+         <div class="t-status" style="color:var(--muted)">no tournament</div>
+         <div class="t-actions">
+           <select class="t-fmt-select" id="fmt-${date}">
+             <option value="threevthree">3v3</option>
+             <option value="twovtwo">2v2</option>
+             <option value="fourvfour">4v4</option>
+           </select>
+           <button class="t-btn t-btn-create" onclick="createAndLoadTournament('${date}')">Create</button>
+         </div>`}
+    </div>`;
+  }).join('');
+}
+
+function createAndLoadTournament(date) {
+  const sel = document.getElementById(`fmt-${date}`);
+  const fmt = sel ? sel.value : FORMAT.THREE;
+  if (createTournament(date, fmt)) {
+    loadAndActivateTournament(date);
+    updateTournamentManagerUI();
+    showToast(`Tournament created: ${dateLabel(date)} · ${formatLabel(fmt)}`);
+  }
+}
+
+function loadAndActivateTournament(date) {
+  if (!loadTournament(date)) return;
+  const t = tournaments[date];
+  gameFormat = t.format;
+  absentSet = new Set();
+
+  // Sync format buttons
+  ['btn-three','btn-four','btn-scrimmage','btn-two'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.className = 'format-btn';
+  });
+  const fmtBtnMap = {[FORMAT.THREE]:'btn-three',[FORMAT.FOUR]:'btn-four',[FORMAT.SCRIMMAGE]:'btn-scrimmage',[FORMAT.TWO]:'btn-two'};
+  const fmtClassMap = {[FORMAT.THREE]:'active-three',[FORMAT.FOUR]:'active-four',[FORMAT.SCRIMMAGE]:'active-scrimmage',[FORMAT.TWO]:'active-two'};
+  const btn = document.getElementById(fmtBtnMap[gameFormat]);
+  if (btn) btn.className = `format-btn ${fmtClassMap[gameFormat]}`;
+
+  // Update header
+  const subEl = document.getElementById('header-sub');
+  if (subEl) subEl.innerHTML = `${formatLabel(gameFormat)} Ladder &nbsp;·&nbsp; ${dateLabel(date)}`;
+
+  if (!t.teams.length) {
+    const available = ALL_PLAYERS.filter(p => !absentSet.has(p));
+    const teams = buildTeams(available);
+    initRecords(teams);
+    renderTeams(teams);
+    t.status = 'in_progress';
+    renderSchedule(teams);
+  } else {
+    initRecords(t.teams);
+    // Restore records from scores
+    Object.entries(t.scores).forEach(([round, courts]) => {
+      Object.values(courts).forEach(s => {
+        if (s && s.locked) {
+          if (s.scoreA>s.scoreB) { records[s.teamAId]&&records[s.teamAId].w++; records[s.teamBId]&&records[s.teamBId].l++; }
+          else { records[s.teamBId]&&records[s.teamBId].w++; records[s.teamAId]&&records[s.teamAId].l++; }
+        }
+      });
+    });
+    renderTeams(t.teams);
+    renderScheduleFromState(t);
+  }
+
+  updateTournamentManagerUI();
+  renderLeaderboard();
+  showToast(`Loaded: ${dateLabel(date)} · ${formatLabel(gameFormat)}`);
+}
+
+function finalizeTournamentByDate(date) {
+  if (!loadTournament(date)) return;
+  finalizeTournament();
+}
+
+function renderScheduleFromState(t) {
+  const container = document.getElementById('schedule-container');
   container.innerHTML = `
     <div class="round-panel active" id="round-1"></div>
     <div class="round-panel" id="round-2"></div>
     <div class="round-panel" id="round-3"></div>
-    <div class="round-panel" id="round-4"></div>
-  `;
-
-  const shuffled = shuffle([...teams]);
-  const r1 = [];
-  for (let i = 0; i < shuffled.length-1; i+=2)
-    r1.push({teamA:shuffled[i], teamB:shuffled[i+1], tier:'open'});
-  if (shuffled.length % 2 === 1) byeTeams[1] = shuffled[shuffled.length-1];
-
-  matchups[1] = r1;
-  renderRoundPanel(1);
-  renderRoundPanel(2);
-  renderRoundPanel(3);
-  renderRoundPanel(4);
-  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===0));
+    <div class="round-panel" id="round-4"></div>`;
+  for (let r=1; r<=4; r++) renderRoundPanel(r);
+  document.querySelectorAll('.tab').forEach((tb,i) => tb.classList.toggle('active', i===0));
 }
 
-// ── REJIGGER ──────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// SCHEDULE
+// ═══════════════════════════════════════════════════════════════════════════
+function renderSchedule(teams) {
+  const container = document.getElementById('schedule-container');
+  scores={1:{},2:{},3:{},4:{}};
+  matchups={1:[],2:[],3:[],4:[]};
+  byeTeams={1:null,2:null,3:null,4:null};
+  if (teams.length<2) { container.innerHTML='<div style="padding:0 24px 20px;color:var(--muted);font-family:DM Mono,monospace;font-size:12px">Not enough teams.</div>'; return; }
+  container.innerHTML=`<div class="round-panel active" id="round-1"></div><div class="round-panel" id="round-2"></div><div class="round-panel" id="round-3"></div><div class="round-panel" id="round-4"></div>`;
+  const shuffled=shuffle([...teams]);
+  const r1=[];
+  for (let i=0;i<shuffled.length-1;i+=2) r1.push({teamA:shuffled[i],teamB:shuffled[i+1],tier:'open'});
+  if (shuffled.length%2===1) byeTeams[1]=shuffled[shuffled.length-1];
+  matchups[1]=r1;
+  for (let r=1;r<=4;r++) renderRoundPanel(r);
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===0));
+  saveTournamentState();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REJIGGER / RESET
+// ═══════════════════════════════════════════════════════════════════════════
 function rejiggerTeams() {
-  const available = ALL_PLAYERS.filter(p => !absentSet.has(p));
+  const available = ALL_PLAYERS.filter(p=>!absentSet.has(p));
   const teams = buildTeams(available);
   initRecords(teams);
   renderTeams(teams);
-  renderSchedule(teams);
-  const grid = document.getElementById('teams-grid');
-  grid.classList.remove('flash');
-  void grid.offsetWidth;
-  grid.classList.add('flash');
+  if (gameFormat===FORMAT.SCRIMMAGE) renderScrimmageView(teams);
+  else renderSchedule(teams);
+  const grid=document.getElementById('teams-grid');
+  grid.classList.remove('flash'); void grid.offsetWidth; grid.classList.add('flash');
 }
 
-// ── RESET TOURNAMENT ──────────────────────────────────────────────────────
 function resetTournament() { document.getElementById('reset-modal').classList.add('open'); }
 function closeResetModal() { document.getElementById('reset-modal').classList.remove('open'); }
 function confirmReset() {
   closeResetModal();
-  scores = {1:{}, 2:{}, 3:{}, 4:{}};
-  matchups = {1:[], 2:[], 3:[], 4:[]};
-  byeTeams = {1:null, 2:null, 3:null, 4:null};
+  scores={1:{},2:{},3:{},4:{}}; matchups={1:[],2:[],3:[],4:[]}; byeTeams={1:null,2:null,3:null,4:null};
   initRecords(currentTeams);
   renderTeams(currentTeams);
   renderSchedule(currentTeams);
   showRound(1);
-  showToast('Tournament reset! New draw generated.');
+  showToast('Tournament reset — new draw generated.');
 }
 
-// ── SHARE ─────────────────────────────────────────────────────────────────
-function shareApp() {
-  const url = window.location.href;
-  if (navigator.share) {
-    navigator.share({
-      title: '🦖 Gym Jam U13/14 — 3v3 Ladder',
-      text: 'Live tournament bracket — Ottawa South Basketball',
-      url
-    }).catch(()=>{});
-  } else {
-    navigator.clipboard.writeText(url).then(()=>showToast('Link copied!')).catch(()=>{ prompt('Copy this link:', url); });
-  }
-}
-
-// ── TOAST ─────────────────────────────────────────────────────────────────
-function showToast(msg) {
-  let t = document.getElementById('toast');
-  if (!t) {
-    t = document.createElement('div');
-    t.id = 'toast';
-    t.style.cssText = 'position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#06d6a0;color:#090e1c;font-family:DM Mono,monospace;font-size:12px;font-weight:600;padding:10px 22px;border-radius:20px;z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,0.4)';
-    document.body.appendChild(t);
-  }
-  t.textContent = msg;
-  t.style.opacity = '1';
-  clearTimeout(t._timer);
-  t._timer = setTimeout(()=>{ t.style.opacity='0'; }, 2500);
-}
-
-// ── TABS ──────────────────────────────────────────────────────────────────
-function showRound(n) {
-  document.querySelectorAll('.round-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  const panel = document.getElementById('round-'+n);
-  if (panel) panel.classList.add('active');
-  const tabs = document.querySelectorAll('.tab');
-  if (tabs[n-1]) tabs[n-1].classList.add('active');
-}
-
-
-
-// ── GAME FORMAT ───────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// FORMAT SWITCHER
+// ═══════════════════════════════════════════════════════════════════════════
 function setFormat(fmt) {
-  if (fmt === gameFormat) return; // no change
-
-  // Mutual exclusion: changing format clears all conflicting state
-  gameFormat = fmt;
-
-  // Reset scores/matchups/records since format changed
-  scores = {1:{}, 2:{}, 3:{}, 4:{}};
-  matchups = {1:[], 2:[], 3:[], 4:[]};
-  byeTeams = {1:null, 2:null, 3:null, 4:null};
-
-  // Update button styles
-  document.getElementById('btn-three').className =
-    'format-btn' + (fmt === FORMAT.THREE ? ' active-three' : '');
-  document.getElementById('btn-four').className =
-    'format-btn' + (fmt === FORMAT.FOUR ? ' active-four' : '');
-  document.getElementById('btn-scrimmage').className =
-    'format-btn' + (fmt === FORMAT.SCRIMMAGE ? ' active-scrimmage' : '');
-
-  // Scrimmage banner + hide schedule
-  const banner = document.getElementById('scrimmage-banner');
-  const body = document.body;
-  if (fmt === FORMAT.SCRIMMAGE) {
-    banner.classList.add('visible');
-    body.classList.add('scrimmage-active');
-  } else {
-    banner.classList.remove('visible');
-    body.classList.remove('scrimmage-active');
-  }
-
-  // Update header subtitle
-  const subEl = document.getElementById('header-sub');
+  if (fmt===gameFormat) return;
+  gameFormat=fmt;
+  scores={1:{},2:{},3:{},4:{}}; matchups={1:[],2:[],3:[],4:[]}; byeTeams={1:null,2:null,3:null,4:null};
+  ['btn-three','btn-four','btn-scrimmage','btn-two'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='format-btn';});
+  const map={[FORMAT.THREE]:{id:'btn-three',cls:'active-three'},[FORMAT.FOUR]:{id:'btn-four',cls:'active-four'},[FORMAT.SCRIMMAGE]:{id:'btn-scrimmage',cls:'active-scrimmage'},[FORMAT.TWO]:{id:'btn-two',cls:'active-two'}};
+  const m=map[fmt]; if(m){const el=document.getElementById(m.id);if(el)el.className=`format-btn ${m.cls}`;}
+  const banner=document.getElementById('scrimmage-banner');
+  if (fmt===FORMAT.SCRIMMAGE) { banner&&banner.classList.add('visible'); document.body.classList.add('scrimmage-active'); }
+  else { banner&&banner.classList.remove('visible'); document.body.classList.remove('scrimmage-active'); }
+  const subEl=document.getElementById('header-sub');
   if (subEl) {
-    if (fmt === FORMAT.THREE)      subEl.innerHTML = 'Swiss Ladder Format &nbsp;·&nbsp; 8 Teams &nbsp;·&nbsp; 4 Courts &nbsp;·&nbsp; 4 Rounds';
-    else if (fmt === FORMAT.FOUR)  subEl.innerHTML = '4v4 Ladder Format &nbsp;·&nbsp; 4 Courts &nbsp;·&nbsp; 4 Rounds';
-    else                           subEl.innerHTML = 'Scrimmage Mode &nbsp;·&nbsp; 2 Complete Teams';
+    const labels={[FORMAT.THREE]:'3v3 Swiss Ladder',[FORMAT.FOUR]:'4v4 Ladder',[FORMAT.TWO]:'2v2 Tournament',[FORMAT.SCRIMMAGE]:'Scrimmage Mode'};
+    subEl.innerHTML=`${labels[fmt]||fmt} &nbsp;·&nbsp; 8 Teams &nbsp;·&nbsp; 4 Courts &nbsp;·&nbsp; 4 Rounds`;
   }
-
-  // Rebuild teams with new format
-  const available = ALL_PLAYERS.filter(p => !absentSet.has(p));
-  const teams = buildTeams(available);
+  const available=ALL_PLAYERS.filter(p=>!absentSet.has(p));
+  const teams=buildTeams(available);
   initRecords(teams);
   renderTeams(teams);
-
-  if (fmt === FORMAT.SCRIMMAGE) {
-    renderScrimmageView(teams);
-  } else {
-    renderSchedule(teams);
-  }
-
-  showToast(`Format: ${fmt === FORMAT.THREE ? '3v3 Ladder' : fmt === FORMAT.FOUR ? '4v4 Ladder' : '2-Team Scrimmage'}`);
+  if (fmt===FORMAT.SCRIMMAGE) renderScrimmageView(teams); else renderSchedule(teams);
+  showToast(`Format: ${formatLabel(fmt)}`);
 }
 
 function renderScrimmageView(teams) {
-  const container = document.getElementById('schedule-container');
-  if (!teams || teams.length < 2) return;
-  const A = teams[0], B = teams[1];
-  container.innerHTML = `
-    <div style="padding:0 24px">
-      <div class="round-note" style="border-left-color:var(--red);color:var(--red)">
-        SCRIMMAGE — Full game, ${A.players.length + (A.sub?1:0)} vs ${B.players.length + (B.sub?1:0)} players
-      </div>
-      <div class="matchups-grid">
-        <div class="matchup-card" style="grid-column:1/-1;max-width:500px;margin:0 auto">
-          <div class="matchup-header">
-            <div class="court-label">Full Court</div>
-            <div class="tier-label" style="color:var(--red);background:rgba(230,57,70,0.1)">Scrimmage</div>
-          </div>
-          <div class="matchup-body">
-            <div class="team-vs">
-              <div class="vs-slot">
-                <div class="vs-slot-label">Team A</div>
-                <div class="vs-slot-name" style="font-size:14px">${A.players.map(p=>p.split(' ').pop()).join(' · ')}</div>
-              </div>
-              <div class="vs-divider">VS</div>
-              <div class="vs-slot">
-                <div class="vs-slot-label">Team B</div>
-                <div class="vs-slot-name" style="font-size:14px">${B.players.map(p=>p.split(' ').pop()).join(' · ')}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>`;
-  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', i===0));
+  const container=document.getElementById('schedule-container');
+  if (!teams||teams.length<2) return;
+  const A=teams[0],B=teams[1];
+  container.innerHTML=`<div style="padding:0 24px"><div class="round-note" style="border-left-color:var(--red);color:var(--red)">SCRIMMAGE — ${A.players.length+( A.sub?1:0)} vs ${B.players.length+(B.sub?1:0)} players</div><div class="matchups-grid"><div class="matchup-card" style="grid-column:1/-1;max-width:500px;margin:0 auto"><div class="matchup-header"><div class="court-label">Full Court</div><div class="tier-label" style="color:var(--red);background:rgba(230,57,70,0.1)">Scrimmage</div></div><div class="matchup-body"><div class="team-vs"><div class="vs-slot"><div class="vs-slot-label">Team A</div><div class="vs-slot-name" style="font-size:14px">${A.players.map(p=>p.split(' ').pop()).join(' · ')}</div></div><div class="vs-divider">VS</div><div class="vs-slot"><div class="vs-slot-label">Team B</div><div class="vs-slot-name" style="font-size:14px">${B.players.map(p=>p.split(' ').pop()).join(' · ')}</div></div></div></div></div></div></div>`;
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===0));
 }
 
-// ── PIN / ORGANIZER ACCESS ────────────────────────────────────────────────
-const ORGANIZER_PIN = '1234'; // Change this to your preferred PIN
-let organizerUnlocked = false;
+// ═══════════════════════════════════════════════════════════════════════════
+// SHARE
+// ═══════════════════════════════════════════════════════════════════════════
+function shareApp() {
+  const url=window.location.href;
+  if (navigator.share) { navigator.share({title:'🦖 Gym Jam U13/14 — 3v3 Ladder',text:'Live tournament bracket — Ottawa South Basketball',url}).catch(()=>{}); }
+  else { navigator.clipboard.writeText(url).then(()=>showToast('Link copied!')).catch(()=>{prompt('Copy this link:',url);}); }
+}
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════════════════════════════════
+function showToast(msg) {
+  let t=document.getElementById('toast');
+  if (!t) { t=document.createElement('div'); t.id='toast'; t.style.cssText='position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#06d6a0;color:#090e1c;font-family:DM Mono,monospace;font-size:12px;font-weight:600;padding:10px 22px;border-radius:20px;z-index:9999;opacity:0;transition:opacity 0.3s;pointer-events:none;white-space:nowrap;box-shadow:0 4px 20px rgba(0,0,0,0.4)'; document.body.appendChild(t); }
+  t.textContent=msg; t.style.opacity='1';
+  clearTimeout(t._timer); t._timer=setTimeout(()=>{t.style.opacity='0';},2500);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════════════════════
+function showRound(n) {
+  document.querySelectorAll('.round-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  const panel=document.getElementById('round-'+n);
+  if (panel) panel.classList.add('active');
+  const tabs=document.querySelectorAll('.tab');
+  if (tabs[n-1]) tabs[n-1].classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ORGANIZER / PIN
+// ═══════════════════════════════════════════════════════════════════════════
 function requestOrganizerAccess() {
-  if (organizerUnlocked) {
-    lockOrganizer();
-    return;
-  }
+  if (organizerUnlocked) { lockOrganizer(); return; }
   document.getElementById('pin-modal').classList.add('open');
-  document.getElementById('pin-input').value = '';
-  document.getElementById('pin-error').textContent = '';
-  setTimeout(() => document.getElementById('pin-input').focus(), 100);
+  document.getElementById('pin-input').value='';
+  document.getElementById('pin-error').textContent='';
+  setTimeout(()=>document.getElementById('pin-input').focus(),100);
 }
-
-function closePinModal() {
-  document.getElementById('pin-modal').classList.remove('open');
-}
-
-function checkPinKey(e) {
-  if (e.key === 'Enter') submitPin();
-}
-
+function closePinModal() { document.getElementById('pin-modal').classList.remove('open'); }
+function checkPinKey(e) { if (e.key==='Enter') submitPin(); }
 function submitPin() {
-  const entered = document.getElementById('pin-input').value;
-  if (entered === ORGANIZER_PIN) {
-    organizerUnlocked = true;
-    closePinModal();
+  const entered=document.getElementById('pin-input').value;
+  if (entered===ORGANIZER_PIN) {
+    organizerUnlocked=true; closePinModal();
     document.getElementById('player-checklist').classList.add('organizer-unlocked');
-    document.getElementById('format-switcher').style.display = 'block';
-    const badge = document.getElementById('organizer-badge');
+    document.getElementById('format-switcher').style.display='block';
+    document.getElementById('tournament-manager').style.display='block';
+    const badge=document.getElementById('organizer-badge');
     badge.classList.remove('locked');
-    badge.innerHTML = '🔓 Organizer Mode — Active &nbsp;·&nbsp; Tap to Lock';
+    badge.innerHTML='🔓 Organizer Mode — Active &nbsp;·&nbsp; Tap to Lock';
+    updateTournamentManagerUI();
+    renderLeaderboard();
     showToast('Organizer mode unlocked');
   } else {
-    document.getElementById('pin-error').textContent = 'Incorrect PIN — try again';
-    document.getElementById('pin-input').value = '';
+    document.getElementById('pin-error').textContent='Incorrect PIN';
+    document.getElementById('pin-input').value='';
     document.getElementById('pin-input').focus();
   }
 }
-
 function lockOrganizer() {
-  organizerUnlocked = false;
+  organizerUnlocked=false;
   document.getElementById('player-checklist').classList.remove('organizer-unlocked');
-  document.getElementById('format-switcher').style.display = 'none';
-  const badge = document.getElementById('organizer-badge');
+  document.getElementById('format-switcher').style.display='none';
+  document.getElementById('tournament-manager').style.display='none';
+  const badge=document.getElementById('organizer-badge');
   badge.classList.add('locked');
-  badge.innerHTML = '🔒 Organizer Mode — Tap to Unlock';
+  badge.innerHTML='🔒 Organizer Mode — Tap to Unlock';
   showToast('Organizer mode locked');
 }
 
-// ── INIT ──────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════════════════
 renderChecklist();
 rejiggerTeams();
+updateTournamentManagerUI();
+renderLeaderboard();
 </script>
 </body>
 </html>
