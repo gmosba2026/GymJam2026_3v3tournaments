@@ -186,20 +186,111 @@
       </div>
     </a>
 
-    <a href="/smallball.html" class="card">
+    <div class="card" onclick="openFundayPin()" style="cursor:pointer">
       <div class="card-badge" style="background:#4cc9f0;color:#090e1c">Development</div>
       <div class="card-title">Development Funday</div>
       <div class="card-sub">U10 Dev / Small Ball</div>
       <div class="card-meta">
-        <span><strong>CSV</strong>Import</span>
-        <span><strong>Multi</strong>Assoc</span>
-        <span><strong>Fun</strong>Days</span>
+        <span><strong>May</strong>30</span>
+        <span><strong>10am</strong>–2pm</span>
+        <span><strong>U10</strong>Dev</span>
       </div>
-    </a>
+    </div>
 
   </div>
 
   <div class="footer">Ottawa South Basketball Association &nbsp;·&nbsp; Gym Jam 2026 &nbsp;·&nbsp; Small Ball / U10 Development</div>
 
+
+<!-- FUNDAY PIN OVERLAY -->
+<style>
+  .fd-overlay {
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,0.82); z-index:1000;
+    align-items:center; justify-content:center; padding:24px;
+  }
+  .fd-overlay.open { display:flex; }
+  .fd-box {
+    background:#162030; border:1px solid rgba(76,201,240,0.35);
+    border-radius:14px; padding:34px 28px; max-width:320px;
+    width:100%; text-align:center;
+    box-shadow:0 0 40px rgba(76,201,240,0.15);
+  }
+  .fd-title {
+    font-family:'Bebas Neue',sans-serif; font-size:26px;
+    letter-spacing:3px; color:#4cc9f0; margin-bottom:6px;
+  }
+  .fd-date {
+    font-family:'DM Mono',monospace; font-size:11px;
+    color:#5a7090; letter-spacing:1.5px; text-transform:uppercase;
+    margin-bottom:22px;
+  }
+  .fd-input {
+    width:100%; text-align:center;
+    font-family:'Bebas Neue',sans-serif; font-size:36px;
+    letter-spacing:10px; background:#0f1828;
+    border:1px solid rgba(76,201,240,0.3); color:#4cc9f0;
+    border-radius:8px; padding:10px; outline:none; margin-bottom:14px;
+  }
+  .fd-input:focus { border-color:#4cc9f0; box-shadow:0 0 10px rgba(76,201,240,0.25); }
+  .fd-error {
+    color:#e63946; font-family:'DM Mono',monospace;
+    font-size:11px; margin-bottom:12px; min-height:16px;
+  }
+  .fd-btns { display:flex; gap:10px; justify-content:center; }
+  .fd-submit {
+    font-family:'DM Mono',monospace; font-size:11px; letter-spacing:1px;
+    background:rgba(76,201,240,0.15); color:#4cc9f0;
+    border:1px solid rgba(76,201,240,0.4); padding:10px 26px;
+    border-radius:6px; cursor:pointer; transition:all 0.2s; text-transform:uppercase;
+  }
+  .fd-submit:hover { background:rgba(76,201,240,0.3); }
+  .fd-cancel {
+    font-family:'DM Mono',monospace; font-size:11px; letter-spacing:1px;
+    background:transparent; color:#5a7090;
+    border:1px solid rgba(255,255,255,0.08); padding:10px 26px;
+    border-radius:6px; cursor:pointer; transition:all 0.2s; text-transform:uppercase;
+  }
+  .fd-cancel:hover { color:#ddeaf8; }
+</style>
+
+<div class="fd-overlay" id="fd-pin-modal">
+  <div class="fd-box">
+    <div class="fd-title">🏀 Development Funday</div>
+    <div class="fd-date">May 30 &nbsp;·&nbsp; 10:00 AM – 2:00 PM</div>
+    <input class="fd-input" type="password" inputmode="numeric" maxlength="4"
+      id="fd-pin-input" placeholder="••••" onkeyup="fdPinKey(event)">
+    <div class="fd-error" id="fd-pin-error"></div>
+    <div class="fd-btns">
+      <button class="fd-cancel" onclick="closeFundayPin()">Cancel</button>
+      <button class="fd-submit" onclick="submitFundayPin()">Enter</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const FD_PIN = '3950';
+function openFundayPin() {
+  document.getElementById('fd-pin-modal').classList.add('open');
+  document.getElementById('fd-pin-input').value = '';
+  document.getElementById('fd-pin-error').textContent = '';
+  setTimeout(() => document.getElementById('fd-pin-input').focus(), 100);
+}
+function closeFundayPin() {
+  document.getElementById('fd-pin-modal').classList.remove('open');
+}
+function fdPinKey(e) { if (e.key === 'Enter') submitFundayPin(); }
+function submitFundayPin() {
+  const val = document.getElementById('fd-pin-input').value;
+  if (val === FD_PIN) {
+    closeFundayPin();
+    window.location.href = '/smallball.html';
+  } else {
+    document.getElementById('fd-pin-error').textContent = 'Incorrect PIN';
+    document.getElementById('fd-pin-input').value = '';
+    document.getElementById('fd-pin-input').focus();
+  }
+}
+</script>
 </body>
 </html>

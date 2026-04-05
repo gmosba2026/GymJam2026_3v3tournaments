@@ -682,11 +682,8 @@ const POINTS_MODEL = {
 };
 
 // SESSION DATES
-// SESSION_DATES — update these to your actual Fun Day dates
-const SESSION_DATES = [
-  '2026-04-07','2026-04-14','2026-04-21','2026-04-28',
-  '2026-05-05','2026-05-12','2026-05-19','2026-05-26'
-];
+// SESSION_DATES — Fun Day sessions
+const SESSION_DATES = ['2026-05-30'];
 
 // TOURNAMENT STORE — keyed by date
 // tournament = { date, format, status: 'draft'|'in_progress'|'finalized',
@@ -736,6 +733,8 @@ function formatLabel(fmt) {
   return {[FORMAT.TWO]:'2v2',[FORMAT.THREE]:'3v3',[FORMAT.FOUR]:'4v4',[FORMAT.SCRIMMAGE]:'Scrimmage'}[fmt]||fmt;
 }
 function dateLabel(d) {
+  const labels = { '2026-05-30': 'Fri, May 30 · 10:00 AM – 2:00 PM' };
+  if (labels[d]) return labels[d];
   const dt = new Date(d+'T12:00:00');
   return dt.toLocaleDateString('en-CA',{weekday:'short',month:'short',day:'numeric'});
 }
