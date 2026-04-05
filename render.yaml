@@ -17,3 +17,9 @@ services:
       - type: rewrite
         source: /u1516/
         destination: /u1516/index.html
+      - type: rewrite
+        source: /smallball
+        destination: /smallball.html
+      - type: rewrite
+        source: /smallball/
+        destination: /smallball.html
