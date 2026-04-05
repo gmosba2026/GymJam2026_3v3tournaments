@@ -447,7 +447,7 @@
 <!-- STATS (dynamic) -->
 <div class="stats-row" id="stats-row">
   <div class="chip"><div class="chip-val" id="stat-teams">8</div><div class="chip-lbl">Teams</div></div>
-  <div class="chip"><div class="chip-val" id="stat-players">30</div><div class="chip-lbl">Players Active</div></div>
+  <div class="chip"><div class="chip-val" id="stat-players">0</div><div class="chip-lbl">Players Active</div></div>
   <div class="chip"><div class="chip-val">4</div><div class="chip-lbl">Courts</div></div>
   <div class="chip"><div class="chip-val">4</div><div class="chip-lbl">Rounds</div></div>
   <div class="chip"><div class="chip-val">16</div><div class="chip-lbl">Total Games</div></div>
@@ -1414,6 +1414,7 @@ function lockOrganizer() {
 // ═══════════════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
+document.getElementById("stat-players").textContent = ALL_PLAYERS.length;
 renderChecklist();
 rejiggerTeams();
 updateTournamentManagerUI();
