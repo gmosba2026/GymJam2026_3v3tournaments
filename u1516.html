@@ -182,6 +182,13 @@
   .pci-toggle.remove:hover { background: rgba(230,57,70,0.3); }
   .pci-toggle.restore { background: rgba(6,214,160,0.15); color: var(--green); }
   .pci-toggle.restore:hover { background: rgba(6,214,160,0.3); }
+  .pci-removed-badge {
+    font-family: 'DM Mono', monospace; font-size: 8px; letter-spacing: 1px;
+    text-transform: uppercase; color: #ff7b7b;
+    background: rgba(230,57,70,0.12); border: 1px solid rgba(230,57,70,0.3);
+    border-radius: 3px; padding: 1px 5px; margin-left: 7px; vertical-align: middle;
+  }
+  .organizer-unlocked .pci-removed-badge { display: none; }
 
   .absent-count {
     font-family: 'DM Mono', monospace; font-size: 11px;
@@ -667,7 +674,8 @@ function persistState() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       tournaments,
       absentByDate,
-      playerPointsLedger
+      playerPointsLedger,
+      activeTournamentDate
     }));
   } catch(e) { console.warn('persistState failed', e); }
 }
@@ -680,6 +688,11 @@ function loadPersistedState() {
     if (saved.tournaments)        Object.assign(tournaments, saved.tournaments);
     if (saved.absentByDate)       Object.assign(absentByDate, saved.absentByDate);
     if (saved.playerPointsLedger) Object.assign(playerPointsLedger, saved.playerPointsLedger);
+    // Restore last active date and re-hydrate absentSet from it
+    if (saved.activeTournamentDate) {
+      activeTournamentDate = saved.activeTournamentDate;
+      absentSet = new Set(absentByDate[activeTournamentDate] || []);
+    }
   } catch(e) { console.warn('loadPersistedState failed', e); }
 }
 
@@ -890,7 +903,7 @@ function renderChecklist() {
     const absent = absentSet.has(p);
     return `<div class="player-check-item ${absent?'absent':''}">
       <div class="pci-avatar" style="background:${absent?'#333':COLORS[i%COLORS.length]}">${initials(p)}</div>
-      <div class="pci-name">${p}</div>
+      <div class="pci-name">${p}${absent?'<span class="pci-removed-badge">removed</span>':''}</div>
       <button class="pci-toggle ${absent?'restore':'remove'}" onclick="togglePlayer(${i})">${absent?'Restore':'Remove'}</button>
     </div>`;
   }).join('');
@@ -902,19 +915,16 @@ function renderChecklist() {
 function togglePlayer(idx) {
   const p = ALL_PLAYERS[idx];
   if (absentSet.has(p)) absentSet.delete(p); else absentSet.add(p);
-  // Persist removal immediately
-  if (activeTournamentDate) {
-    absentByDate[activeTournamentDate] = [...absentSet];
-    persistState();
-  }
+  const dateKey = activeTournamentDate || '__global__';
+  absentByDate[dateKey] = [...absentSet];
+  persistState();
   renderChecklist();
 }
 function restoreAll() {
   absentSet.clear();
-  if (activeTournamentDate) {
-    absentByDate[activeTournamentDate] = [];
-    persistState();
-  }
+  const dateKey = activeTournamentDate || '__global__';
+  absentByDate[dateKey] = [];
+  persistState();
   renderChecklist();
   rejiggerTeams();
 }
@@ -1241,6 +1251,7 @@ function loadAndActivateTournament(date) {
   gameFormat = t.format;
   // Restore persisted absent players for this date
   absentSet = new Set(absentByDate[date] || []);
+  activeTournamentDate = date;  // ensure persistState saves correct date
 
   // Sync format buttons
   ['btn-three','btn-four','btn-scrimmage','btn-two'].forEach(id => {
