@@ -490,6 +490,19 @@
   .move-bar.active{display:flex}
   .move-cancel-btn{margin-left:auto;background:rgba(230,57,70,.15);color:var(--red);border:1px solid rgba(230,57,70,.3);font-family:'DM Mono',monospace;font-size:10px;padding:4px 10px;border-radius:4px;cursor:pointer;text-transform:uppercase}
 
+
+  /* MATCHUP BUILDER */
+  .mb-team-chip{background:var(--surface2);border:1.5px solid var(--border-soft);border-radius:8px;padding:10px 14px;cursor:pointer;display:flex;flex-direction:column;gap:3px;transition:all .15s}
+  .mb-team-chip:hover{border-color:rgba(245,166,35,.5);background:var(--surface)}
+  .mb-team-chip.mb-sel{background:rgba(245,166,35,.2);border-color:var(--gold);box-shadow:0 0 10px rgba(245,166,35,.2)}
+  .mb-chip-name{font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:1px;color:#fff}
+  .mb-chip-players{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace}
+  .mb-pair-row{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border-soft);border-radius:8px;padding:10px 14px;flex-wrap:wrap}
+  .mb-pair-name{flex:1;font-family:'Bebas Neue',sans-serif;font-size:17px;letter-spacing:1px;min-width:80px}
+  .mb-vs{font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:3px;color:var(--muted)}
+  .edit-matchup-btn{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:5px 12px;border-radius:4px;cursor:pointer;background:rgba(123,47,190,.12);color:#c084fc;border:1px solid rgba(123,47,190,.35);margin-left:10px;vertical-align:middle;transition:all .2s}
+  .edit-matchup-btn:hover{background:rgba(123,47,190,.25)}
+
 </style>
 </head>
 <body>
@@ -1270,7 +1283,8 @@ function renderRoundPanel(round) {
     return;
   }
   const notes={1:'ROUND 1 — Open draw · Enter scores to advance',2:'ROUND 2 — Winners vs Winners · Losers vs Losers',3:'ROUND 3 — Swiss ladder tightens',4:'ROUND 4 — Final placement games'};
-  let html=`<div class="round-note">${notes[round]}</div><div class="matchups-grid">`;
+  var _editBtn=organizerUnlocked?'<button class="edit-matchup-btn" onclick="openMatchupBuilder('+round+')">✏️ Edit Matchups</button>':'';
+  let html=`<div class="round-note">${notes[round]}${_editBtn}</div><div class="matchups-grid">`;
   ms.forEach((m,i) => {
     const s=scores[round][i]||{};
     const locked=s.locked;
@@ -1942,6 +1956,120 @@ function confirmJerseyEdit(){
 function clearJerseyEdit(){ delete jerseyNumbers[_jEditTarget]; _saveJerseys(); closeJerseyModal(); renderChecklist(); renderTeams(currentTeams); }
 function closeJerseyModal(){ document.getElementById('jersey-modal').style.display='none'; _jEditTarget=null; }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MANUAL MATCHUP BUILDER
+// ═══════════════════════════════════════════════════════════════════════════
+var _mbRound=null, _mbPairs=[], _mbSel=null, _mbBye=null;
+
+function openMatchupBuilder(round){
+  if(!organizerUnlocked) return;
+  _mbRound=round; _mbSel=null; _mbBye=byeTeams[round]||null;
+  // Pre-populate from existing matchups if any
+  if(matchups[round]&&matchups[round].length>0){
+    _mbPairs=matchups[round].map(function(m){return{a:m.teamA,b:m.teamB};});
+  } else { _mbPairs=[]; }
+  document.getElementById('mb-round-num').textContent=round;
+  document.getElementById('matchup-builder').style.display='flex';
+  _mbRender();
+}
+
+function _mbPairedIds(){
+  var ids=[];
+  _mbPairs.forEach(function(p){ids.push(p.a.id,p.b.id);});
+  return ids;
+}
+
+function _mbRender(){
+  var paired=_mbPairedIds();
+  var byeId=_mbBye?_mbBye.id:-999;
+  var avail=currentTeams.filter(function(t){return !paired.includes(t.id)&&t.id!==byeId;});
+
+  // Available teams grid
+  var avEl=document.getElementById('mb-avail');
+  avEl.innerHTML=avail.length===0
+    ?'<span style="color:var(--muted);font-size:12px;font-family:DM Mono,monospace">All teams assigned</span>'
+    :avail.map(function(t){
+      var sel=_mbSel&&_mbSel.id===t.id;
+      var names=t.players.map(function(p){return p.split(' ').pop();}).join(' · ');
+      return '<div class="mb-team-chip'+(sel?' mb-sel':'')+'" onclick="_mbClick('+t.id+')">'
+        +'<div class="mb-chip-name">'+t.name+'</div>'
+        +'<div class="mb-chip-players">'+names+'</div>'
+        +'</div>';
+    }).join('');
+
+  // Pairs list
+  var pEl=document.getElementById('mb-pairs');
+  var pcEl=document.getElementById('mb-pair-count');
+  if(pcEl) pcEl.textContent=_mbPairs.length;
+  pEl.innerHTML=_mbPairs.length===0
+    ?'<div style="color:var(--muted);font-size:12px;font-family:DM Mono,monospace;padding:8px 0">No matchups yet — select two teams above</div>'
+    :_mbPairs.map(function(p,i){
+      return '<div class="mb-pair-row">'
+        +'<div class="mb-pair-name">'+p.a.name+'</div>'
+        +'<div class="mb-vs">VS</div>'
+        +'<div class="mb-pair-name">'+p.b.name+'</div>'
+        +'<button onclick="_mbRemove('+i+')" style="background:rgba(230,57,70,.15);color:#ff7b7b;border:1px solid rgba(230,57,70,.3);font-family:DM Mono,monospace;font-size:10px;padding:4px 10px;border-radius:4px;cursor:pointer;flex-shrink:0">Remove</button>'
+        +'</div>';
+    }).join('');
+
+  // Bye
+  var byeEl=document.getElementById('mb-bye-area');
+  var remaining=currentTeams.filter(function(t){return !_mbPairedIds().includes(t.id);});
+  if(_mbBye){
+    byeEl.innerHTML='<div style="font-family:DM Mono,monospace;font-size:11px;color:var(--muted)">Bye (free win): <strong style="color:var(--gold)">'+_mbBye.name+'</strong>'
+      +' <button onclick="_mbClearBye()" style="margin-left:8px;background:transparent;color:var(--muted);border:1px solid var(--border-soft);font-family:DM Mono,monospace;font-size:10px;padding:2px 8px;border-radius:4px;cursor:pointer">Clear</button></div>';
+  } else if(remaining.length===1&&currentTeams.length%2===1){
+    _mbBye=remaining[0];
+    _mbRender(); return;
+  } else { byeEl.innerHTML=''; }
+
+  // Warning
+  var wEl=document.getElementById('mb-warn');
+  var unpaired=currentTeams.filter(function(t){var p=_mbPairedIds(),b=_mbBye?_mbBye.id:-999;return!p.includes(t.id)&&t.id!==b;});
+  wEl.textContent=unpaired.length>0?'⚠ '+unpaired.length+' team(s) not yet assigned':'';
+
+  // Apply btn
+  var apBtn=document.getElementById('mb-apply-btn');
+  if(apBtn) apBtn.disabled=_mbPairs.length<1||unpaired.length>0;
+}
+
+function _mbClick(tid){
+  var team=currentTeams.find(function(t){return t.id===tid;});
+  if(!team) return;
+  if(!_mbSel){ _mbSel=team; _mbRender(); }
+  else if(_mbSel.id===tid){ _mbSel=null; _mbRender(); }
+  else{ _mbPairs.push({a:_mbSel,b:team}); _mbSel=null; _mbRender(); }
+}
+function _mbRemove(i){ _mbPairs.splice(i,1); _mbRender(); }
+function _mbClearBye(){ _mbBye=null; _mbRender(); }
+
+function applyManualMatchups(){
+  if(!_mbPairs.length) return;
+  // Clear scores for this round and all later rounds
+  for(var r=_mbRound;r<=4;r++){
+    if(scores[r]){ Object.values(scores[r]).forEach(function(s){
+      if(s&&s.locked){ if(s.scoreA>s.scoreB){if(records[s.teamAId])records[s.teamAId].w=Math.max(0,records[s.teamAId].w-1);if(records[s.teamBId])records[s.teamBId].l=Math.max(0,records[s.teamBId].l-1);}
+        else{if(records[s.teamBId])records[s.teamBId].w=Math.max(0,records[s.teamBId].w-1);if(records[s.teamAId])records[s.teamAId].l=Math.max(0,records[s.teamAId].l-1);}}});
+    }
+    scores[r]={}; matchups[r]=[]; byeTeams[r]=null;
+  }
+  // Set new matchups
+  matchups[_mbRound]=_mbPairs.map(function(p){return{teamA:p.a,teamB:p.b,tier:'open'};});
+  byeTeams[_mbRound]=_mbBye||null;
+  saveTournamentState();
+  renderTeams(currentTeams);
+  for(var rr=1;rr<=4;rr++) renderRoundPanel(rr);
+  showRound(_mbRound);
+  closeMatchupBuilder();
+  showToast('Round '+_mbRound+' matchups applied');
+}
+
+function closeMatchupBuilder(){
+  document.getElementById('matchup-builder').style.display='none';
+  _mbRound=null; _mbPairs=[]; _mbSel=null; _mbBye=null;
+}
+
 loadPersistedState();   // ← restore tournaments, absentByDate, leaderboard
 _initJerseys(JERSEY_DEFAULTS);
 document.getElementById("stat-players").textContent = ALL_PLAYERS.length;
@@ -1963,6 +2091,32 @@ renderLeaderboard();
       <button onclick="confirmJerseyEdit()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:9px 18px;border-radius:6px;cursor:pointer;background:rgba(245,166,35,.15);color:var(--gold);border:1px solid rgba(245,166,35,.4)">Save</button>
       <button onclick="clearJerseyEdit()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:9px 18px;border-radius:6px;cursor:pointer;background:rgba(230,57,70,.1);color:#ff7b7b;border:1px solid rgba(230,57,70,.3)">Clear #</button>
       <button onclick="closeJerseyModal()" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:9px 14px;border-radius:6px;cursor:pointer;background:transparent;color:var(--muted);border:1px solid var(--border-soft)">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- MATCHUP BUILDER MODAL -->
+<div id="matchup-builder" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:5000;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;">
+  <div style="background:#162030;border:1px solid rgba(245,166,35,.35);border-radius:14px;padding:24px;max-width:640px;width:100%;margin:20px auto;">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:3px;color:var(--gold);margin-bottom:4px">
+      Round <span id="mb-round-num">1</span> — Manual Matchups
+    </div>
+    <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:20px;letter-spacing:.5px">
+      Click a team to select it, then click another team to pair them as opponents.
+    </div>
+    <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:8px">Available Teams</div>
+    <div id="mb-avail" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px;margin-bottom:20px;min-height:40px"></div>
+    <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:8px">
+      Matchups <span id="mb-pair-count" style="background:var(--surface2);border:1px solid var(--border-soft);border-radius:8px;padding:1px 7px;font-size:10px">0</span>
+    </div>
+    <div id="mb-pairs" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;min-height:40px"></div>
+    <div id="mb-bye-area" style="margin-bottom:16px"></div>
+    <div id="mb-warn" style="font-family:'DM Mono',monospace;font-size:11px;color:#ff7b7b;min-height:18px;margin-bottom:12px"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button id="mb-apply-btn" onclick="applyManualMatchups()"
+        style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:10px 22px;border-radius:6px;cursor:pointer;background:rgba(245,166,35,.15);color:var(--gold);border:1px solid rgba(245,166,35,.4)">✓ Apply Matchups</button>
+      <button onclick="closeMatchupBuilder()"
+        style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:10px 16px;border-radius:6px;cursor:pointer;background:transparent;color:var(--muted);border:1px solid var(--border-soft)">Cancel</button>
     </div>
   </div>
 </div>
