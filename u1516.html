@@ -1086,7 +1086,11 @@ function renderTeams(teams) {
     document.getElementById('stat-players').textContent = ALL_PLAYERS.length - absentSet.size;
     return;
   }
-  grid.innerHTML = teams.map(t => {
+  // Apply roster sort if active
+  var _displayTeams = (rosterSortMode && rosterSortMode !== 'custom')
+    ? teams.map(function(t){ return Object.assign({},t,{players:_sortedPlayers(t.players)}); })
+    : teams;
+  grid.innerHTML = _displayTeams.map(t => {
     const r = records[t.id]||{w:0,l:0};
     return `<div class="team-card ${t.players.length<(gameFormat===FORMAT.FOUR?4:3)?'short-handed':''} ${organizerUnlocked&&manualMode&&movingPlayer?'droppable':''}" onclick="dropOnTeam(${t.id})">
       <div class="team-num">${t.id}</div>

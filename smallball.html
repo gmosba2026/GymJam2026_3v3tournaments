@@ -1190,7 +1190,7 @@ function renderChecklist() {
     const absent = absentSet.has(name);
     const assocColor = {'OSBA':'#f5a623','OSS':'#06d6a0','NBBA':'#4cc9f0','KEMPT':'#a29bfe','PRBC':'#fd79a8'}[p.association] || 'var(--muted)';
     return `<div class="player-check-item ${absent?'absent':''}">
-      <div class="pci-avatar" style="background:${_jBg(p,absent,i)};color:${_jColor(p,absent)};font-size:${_jFs(p)};font-weight:700;${organizerUnlocked?'cursor:pointer;':''}" onclick="openJerseyEdit(this.getAttribute('data-nm'))" data-nm="${_dnm(p)}" title="Edit jersey #">${_jVal(p,initials(p))}</div>
+      <div class="pci-avatar" style="background:${_jBg(name,absent,i)};color:${_jColor(name,absent)};font-size:${_jFs(name)};font-weight:700;${organizerUnlocked?'cursor:pointer;':''}" onclick="openJerseyEdit(this.getAttribute('data-nm'))" data-nm="${_dnm(name)}" title="Edit jersey #">${_jVal(name,initials(p))}</div>
       <div class="pci-name">${name}<span style="font-size:9px;letter-spacing:1px;color:${assocColor};margin-left:6px;font-family:'DM Mono',monospace">${p.association}</span>${absent?'<span class="pci-removed-badge">removed</span>':''}</div>
       <button class="pci-toggle ${absent?'restore':'remove'}" onclick="togglePlayer(${i})">${absent?'Restore':'Remove'}</button>
     </div>`;
@@ -1230,7 +1230,11 @@ function renderTeams(teams) {
     document.getElementById('stat-players').textContent = ALL_PLAYERS.length - absentSet.size;
     return;
   }
-  grid.innerHTML = teams.map(t => {
+  // Apply roster sort if active
+  var _displayTeams = (rosterSortMode && rosterSortMode !== 'custom')
+    ? teams.map(function(t){ return Object.assign({},t,{players:_sortedPlayers(t.players)}); })
+    : teams;
+  grid.innerHTML = _displayTeams.map(t => {
     const r = records[t.id]||{w:0,l:0};
     return `<div class="team-card ${t.players.length<(gameFormat===FORMAT.FOUR?4:3)?'short-handed':''}">
       <div class="team-num">${t.id}</div>
@@ -2296,17 +2300,17 @@ function _hasLiveScores(){
 var rosterSortMode = 'custom'; // 'custom' | 'surname' | 'number'
 
 // Helper: extract surname from "Firstname Lastname" or "Firstname Middle Last"
-function _surname(fullName) {
-  if (!fullName) return '';
-  var parts = fullName.trim().split(/\s+/);
-  return parts[parts.length - 1].toLowerCase();
+function _surname(p) {
+  var s = (p && typeof p === 'object') ? (p.last || p.surname || '') : (p || '');
+  return s.trim().toLowerCase();
 }
-function _firstname(fullName) {
-  if (!fullName) return '';
-  return fullName.trim().split(/\s+/)[0].toLowerCase();
+function _firstname(p) {
+  var s = (p && typeof p === 'object') ? (p.first || '') : ((p || '').trim().split(/\s+/)[0] || '');
+  return s.trim().toLowerCase();
 }
 function _jerseyNum(name) {
-  var n = jerseyNumbers[name];
+  var key = (name && typeof name === 'object') ? playerFullName(name) : name;
+  var n = jerseyNumbers[key];
   return (n !== undefined && n !== null) ? parseInt(n, 10) : null;
 }
 
@@ -2437,9 +2441,10 @@ function printRoster() {
 
     players.forEach(function(p) {
       var isSub = (p === t.sub);
-      var parts = (p || '').trim().split(/\s+/);
-      var lastName = parts.length > 1 ? parts[parts.length-1] : '';
-      var firstName = parts.length > 1 ? parts.slice(0,-1).join(' ') : parts[0] || '';
+      var _pn = (p && typeof p === 'object') ? playerFullName(p) : (p || '');
+      var _ln = (p && typeof p === 'object') ? (p.last||'') : (_pn.trim().split(/\s+/).pop()||'');
+      var _fn = (p && typeof p === 'object') ? (p.first||'') : (_pn.trim().split(/\s+/).slice(0,-1).join(' '));
+      var lastName = _ln, firstName = _fn;
       var num = _jerseyNum(p);
       html += '<tr>' +
         '<td>' + (num !== null ? num : '') + '</td>' +
