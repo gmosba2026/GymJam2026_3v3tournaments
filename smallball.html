@@ -511,7 +511,7 @@
 
   /* === SORT CONTROLS (manual mode only) === */
   .roster-sort-bar {
-    display:none; /* shown via JS when manualMode=true */
+    display:none;
     align-items:center; gap:8px; flex-wrap:wrap;
     margin: 8px 0 4px;
   }
@@ -1776,6 +1776,7 @@ function submitPin() {
     updateTournamentManagerUI();
     renderLeaderboard();
     var _mb=document.getElementById('manual-mode-btn');if(_mb)_mb.style.display='inline-block';
+    var _sb=document.getElementById('roster-sort-bar');if(_sb)_sb.classList.add('visible');
     var _rcw=document.getElementById('round-count-wrap');if(_rcw)_rcw.style.display='block';
     for(var _r=1;_r<=numRounds;_r++) renderRoundPanel(_r);
     showToast('Organizer mode unlocked');
@@ -1799,6 +1800,7 @@ function lockOrganizer() {
   manualMode=false;movingPlayer=null;manualPool=[];
   var _pw=document.getElementById('player-pool-wrap');if(_pw)_pw.style.display='none';
   var _mb2=document.getElementById('manual-mode-btn');if(_mb2){_mb2.style.display='none';_mb2.classList.remove('active');_mb2.textContent='✏️ Manual Mode';}
+  var _sb2=document.getElementById('roster-sort-bar');if(_sb2)_sb2.classList.remove('visible');
   for(var _r2=1;_r2<=4;_r2++) renderRoundPanel(_r2);
   showToast('Organizer mode locked');
 }
@@ -2325,12 +2327,8 @@ function setRosterSort(mode) {
     var btn = document.getElementById('sort-btn-' + m);
     if (btn) btn.classList.toggle('sort-active', m === mode);
   });
-  // Re-render all teams with sorted players
-  var sorted = currentTeams.map(function(t) {
-    return Object.assign({}, t, { players: _sortedPlayers(t.players) });
-  });
-  // Use a temp render — don't overwrite currentTeams player order (custom stays intact)
-  _renderTeamsSorted(sorted);
+  // Re-render — renderTeams applies _displayTeams sort automatically
+  renderTeams(currentTeams);
 }
 
 // Render teams with a given (possibly sorted) list without altering currentTeams
@@ -2374,8 +2372,6 @@ sendToPool = function(nm, tid, isSub) {
 var _origToggleManual = toggleManualMode;
 toggleManualMode = function() {
   _origToggleManual();
-  var bar = document.getElementById('roster-sort-bar');
-  if (bar) bar.classList.toggle('visible', manualMode);
   if (!manualMode) {
     // Reset to custom when leaving manual mode
     rosterSortMode = 'custom';
