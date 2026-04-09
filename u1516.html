@@ -467,6 +467,63 @@
   .round-num-btn:hover{border-color:var(--gold);color:var(--gold)}
   .round-num-btn.active-rnd{background:rgba(245,166,35,.15);color:var(--gold);border-color:rgba(245,166,35,.5)}
 
+
+  /* === SORT CONTROLS (manual mode only) === */
+  .roster-sort-bar {
+    display:none; /* shown via JS when manualMode=true */
+    align-items:center; gap:8px; flex-wrap:wrap;
+    margin: 8px 0 4px;
+  }
+  .roster-sort-bar.visible { display:flex; }
+  .sort-lbl {
+    font-family:'DM Mono',monospace; font-size:10px; letter-spacing:1.5px;
+    color:var(--muted); text-transform:uppercase;
+  }
+  .sort-btn {
+    font-family:'DM Mono',monospace; font-size:10px; letter-spacing:1px;
+    padding:5px 12px; border-radius:4px; cursor:pointer; text-transform:uppercase;
+    border:1px solid var(--border-soft); background:transparent; color:var(--muted);
+    transition:all .2s;
+  }
+  .sort-btn:hover { border-color:var(--gold); color:var(--gold); }
+  .sort-btn.sort-active {
+    background:rgba(245,166,35,.15); color:var(--gold);
+    border-color:rgba(245,166,35,.45); font-weight:600;
+  }
+  /* === PRINT BUTTON === */
+  .print-roster-btn {
+    font-family:'DM Mono',monospace; font-size:10px; letter-spacing:1px;
+    padding:8px 14px; border-radius:4px; cursor:pointer; text-transform:uppercase;
+    border:1px solid rgba(76,201,240,.3); background:rgba(76,201,240,.08);
+    color:var(--blue); transition:all .2s;
+  }
+  .print-roster-btn:hover { background:rgba(76,201,240,.18); }
+
+  /* === PRINT STYLES === */
+  @media print {
+    body * { visibility:hidden !important; }
+    #print-roster-area, #print-roster-area * { visibility:visible !important; }
+    #print-roster-area {
+      position:fixed; inset:0; padding:24px 32px;
+      background:#fff; color:#000; font-family:Arial,sans-serif;
+    }
+    .print-header { margin-bottom:16px; border-bottom:2px solid #000; padding-bottom:10px; }
+    .print-title { font-size:20px; font-weight:700; letter-spacing:1px; }
+    .print-sub { font-size:11px; color:#555; margin-top:4px; }
+    .print-team-block { margin-bottom:22px; page-break-inside:avoid; }
+    .print-team-name { font-size:14px; font-weight:700; margin-bottom:6px;
+      border-bottom:1px solid #ccc; padding-bottom:4px; }
+    .print-table { width:100%; border-collapse:collapse; font-size:12px; }
+    .print-table th {
+      background:#eee; font-weight:700; text-align:left;
+      padding:5px 10px; border:1px solid #ccc; font-size:11px;
+      text-transform:uppercase; letter-spacing:.5px;
+    }
+    .print-table td { padding:5px 10px; border:1px solid #ccc; }
+    .print-table tr:nth-child(even) td { background:#f9f9f9; }
+    .no-print { display:none !important; }
+  }
+
 </style>
 </head>
 <body>
@@ -560,7 +617,18 @@
       <button class="restore-all-btn" onclick="restoreAll()">Restore All Players</button>
       <button class="restore-all-btn reset-btn" onclick="resetTournament()">🔄 Reset Tournament</button>
       <button class="share-btn" onclick="shareApp()">📤 Share</button>
+      <button class="print-roster-btn" onclick="printRoster()">🖨️ Print Roster</button>
       <button class="manual-mode-btn" id="manual-mode-btn" onclick="toggleManualMode()">✏️ Manual Mode</button>
+      <!-- SORT CONTROLS: visible only in Manual Mode -->
+      <div class="roster-sort-bar" id="roster-sort-bar">
+        <span class="sort-lbl">Sort:</span>
+        <button class="sort-btn sort-active" id="sort-btn-custom"
+          onclick="setRosterSort('custom')">Custom</button>
+        <button class="sort-btn" id="sort-btn-surname"
+          onclick="setRosterSort('surname')">Surname A–Z</button>
+        <button class="sort-btn" id="sort-btn-number"
+          onclick="setRosterSort('number')">Number 0–99</button>
+      </div>
     </div>
     <div class="absent-count" id="absent-count" style="display:none">0 absent</div>
   </div>
@@ -813,7 +881,15 @@ function loadTournament(date) {
   matchups = t.matchups;
   records = t.records;
   byeTeams = t.byeTeams;
-  if(t.numRounds){numRounds=t.numRounds;_renderTabs();}
+  if(t.numRounds){
+    numRounds=t.numRounds;
+    // Sync round count buttons
+    [2,3,4,5,6].forEach(function(i){
+      var btn=document.getElementById('rnd-btn-'+i);
+      if(btn) btn.classList.toggle('active-rnd',i===numRounds);
+    });
+    _renderTabs();
+  }
   return true;
 }
 
@@ -1161,9 +1237,21 @@ function renderRoundPanel(round) {
     panel.innerHTML=`<div style="padding:0 24px"><div class="round-note" style="color:var(--gold)">${msgs[round]||''}</div></div>`;
     return;
   }
-  const notes={1:'ROUND 1 — Open draw · Enter scores to advance',2:'ROUND 2 — Winners vs Winners · Losers vs Losers',3:'ROUND 3 — Swiss ladder tightens',4:'ROUND 4 — Final placement games'};
+  var _rndLabels={1:'ROUND 1 — Open draw · Enter scores to advance',
+    2:'ROUND 2 — Winners vs Winners · Losers vs Losers',
+    3:'ROUND 3 — Swiss ladder tightens',
+    4:'ROUND 4 — Final placement games',
+    5:'ROUND 5 — Final placement games',
+    6:'ROUND 6 — Final placement games'};
+  var _isLastRound = (round === numRounds);
+  var _noteText = _rndLabels[round] || ('ROUND '+round+(_isLastRound?' — Final':''));
+  var _allScored = ms.every(function(_,i){return scores[round][i]&&scores[round][i].locked;});
+  var _finalizeBtn = (organizerUnlocked && _isLastRound && _allScored && tournaments[activeTournamentDate] && tournaments[activeTournamentDate].status !== 'finalized')
+    ? '<button onclick="finalizeTournament()" style="margin-left:10px;font-family:DM Mono,monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:5px 14px;border-radius:4px;cursor:pointer;background:rgba(6,214,160,.2);color:var(--green);border:1px solid rgba(6,214,160,.4)">🏁 Finalize Tournament</button>'
+    : '';
+  const notes={1:_noteText,2:_noteText,3:_noteText,4:_noteText,5:_noteText,6:_noteText};
   var _editBtn=organizerUnlocked?'<button class="edit-matchup-btn" onclick="openMatchupBuilder('+round+')">✏️ Edit Matchups</button>':'';
-  let html=`<div class="round-note">${notes[round]}${_editBtn}</div><div class="matchups-grid">`;
+  let html=`<div class="round-note">${notes[round]}${_editBtn}${_finalizeBtn||''}</div><div class="matchups-grid">`;
   ms.forEach((m,i) => {
     const s=scores[round][i]||{};
     const locked=s.locked;
@@ -1399,6 +1487,9 @@ function renderSchedule(teams) {
 // REJIGGER / RESET
 // ═══════════════════════════════════════════════════════════════════════════
 function rejiggerTeams() {
+  if(_hasLiveScores()){
+    if(!confirm('⚠️ Scores have been entered today.\n\nRejigger will generate NEW random teams and clear the schedule.\n\nAre you sure?')) return;
+  }
   manualPool=[];movingPlayer=null;
   _clearLiveState();
   const available = ALL_PLAYERS.filter(p=>!absentSet.has(p));
@@ -1429,6 +1520,9 @@ function confirmReset() {
 // ═══════════════════════════════════════════════════════════════════════════
 function setFormat(fmt) {
   if (fmt===gameFormat) return;
+  if(_hasLiveScores()){
+    if(!confirm('⚠️ Scores have been entered today.\n\nChanging format will reset teams and schedule.\n\nAre you sure?')) return;
+  }
   gameFormat=fmt;
   _initRoundState();
   ['btn-three','btn-four','btn-scrimmage','btn-two'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='format-btn';});
@@ -1775,6 +1869,9 @@ var numRounds = 4;
 function setNumRounds(n) {
   n = parseInt(n);
   if (n === numRounds) return;
+  if(_hasLiveScores()){
+    if(!confirm('⚠️ Scores have been entered.\n\nChanging rounds will reset the schedule.\n\nAre you sure?')) return;
+  }
   numRounds = n;
   [2,3,4,5,6].forEach(function(i){
     var btn=document.getElementById('rnd-btn-'+i);
@@ -1855,6 +1952,186 @@ function _clearLiveState() {
   try { localStorage.removeItem(STORAGE_KEY+'_live'); } catch(e) {}
 }
 
+function _hasLiveScores(){
+  try{
+    var s=localStorage.getItem(STORAGE_KEY+'_live');
+    if(!s) return false;
+    var d=JSON.parse(s);
+    if(!d||!d.scores) return false;
+    return Object.values(d.scores).some(function(r){
+      return Object.values(r).some(function(g){return g&&g.locked;});
+    });
+  }catch(e){return false;}
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ROSTER SORT + PRINT
+// ═══════════════════════════════════════════════════════════════════════════
+var rosterSortMode = 'custom'; // 'custom' | 'surname' | 'number'
+
+// Helper: extract surname from "Firstname Lastname" or "Firstname Middle Last"
+function _surname(fullName) {
+  if (!fullName) return '';
+  var parts = fullName.trim().split(/\s+/);
+  return parts[parts.length - 1].toLowerCase();
+}
+function _firstname(fullName) {
+  if (!fullName) return '';
+  return fullName.trim().split(/\s+/)[0].toLowerCase();
+}
+function _jerseyNum(name) {
+  var n = jerseyNumbers[name];
+  return (n !== undefined && n !== null) ? parseInt(n, 10) : null;
+}
+
+// Sort a copy of a player name array by current sort mode
+function _sortedPlayers(arr) {
+  if (rosterSortMode === 'custom') return arr.slice();
+  var copy = arr.slice();
+  copy.sort(function(a, b) {
+    if (rosterSortMode === 'surname') {
+      var s = _surname(a).localeCompare(_surname(b));
+      if (s !== 0) return s;
+      return _firstname(a).localeCompare(_firstname(b));
+    }
+    if (rosterSortMode === 'number') {
+      var na = _jerseyNum(a), nb = _jerseyNum(b);
+      // Missing numbers sink to bottom
+      if (na === null && nb === null) {
+        var s2 = _surname(a).localeCompare(_surname(b));
+        return s2 !== 0 ? s2 : _firstname(a).localeCompare(_firstname(b));
+      }
+      if (na === null) return 1;
+      if (nb === null) return -1;
+      if (na !== nb) return na - nb;
+      var s3 = _surname(a).localeCompare(_surname(b));
+      return s3 !== 0 ? s3 : _firstname(a).localeCompare(_firstname(b));
+    }
+    return 0;
+  });
+  return copy;
+}
+
+function setRosterSort(mode) {
+  rosterSortMode = mode;
+  // Update button states
+  ['custom','surname','number'].forEach(function(m) {
+    var btn = document.getElementById('sort-btn-' + m);
+    if (btn) btn.classList.toggle('sort-active', m === mode);
+  });
+  // Re-render all teams with sorted players
+  var sorted = currentTeams.map(function(t) {
+    return Object.assign({}, t, { players: _sortedPlayers(t.players) });
+  });
+  // Use a temp render — don't overwrite currentTeams player order (custom stays intact)
+  _renderTeamsSorted(sorted);
+}
+
+// Render teams with a given (possibly sorted) list without altering currentTeams
+function _renderTeamsSorted(teams) {
+  var grid = document.getElementById('teams-grid');
+  if (!grid) return;
+  if (!teams.length) return;
+  grid.innerHTML = teams.map(function(t) {
+    var r = records[t.id] || {w:0, l:0};
+    var drop = organizerUnlocked && manualMode && movingPlayer;
+    return '<div class="team-card' +
+      (t.players.length < (gameFormat===FORMAT.FOUR?4:3) ? ' short-handed' : '') +
+      (drop ? ' droppable' : '') +
+      '" onclick="dropOnTeam(' + t.id + ')">' +
+      '<div class="team-num">' + t.id + '</div>' +
+      '<div class="team-name">' + t.name + '</div>' +
+      t.players.map(function(p){ return _pr(p, t.id, false); }).join('') +
+      (t.sub ? _pr(t.sub, t.id, true) : '') +
+      '<div class="team-count">' + t.players.length + 'p' +
+        (t.sub ? ' + 1 rot.' : '') +
+        ' &nbsp;·&nbsp; <span style="color:var(--green)">' + r.w + 'W</span>' +
+        ' <span style="color:var(--red)">' + r.l + 'L</span>' +
+      '</div></div>';
+  }).join('');
+}
+
+// When a player is dragged (sendToPool), switch to Custom automatically
+var _origSendToPool = sendToPool;
+sendToPool = function(nm, tid, isSub) {
+  if (rosterSortMode !== 'custom') {
+    rosterSortMode = 'custom';
+    ['custom','surname','number'].forEach(function(m) {
+      var btn = document.getElementById('sort-btn-' + m);
+      if (btn) btn.classList.toggle('sort-active', m === 'custom');
+    });
+  }
+  _origSendToPool(nm, tid, isSub);
+};
+
+// Show/hide sort bar when manual mode toggles
+var _origToggleManual = toggleManualMode;
+toggleManualMode = function() {
+  _origToggleManual();
+  var bar = document.getElementById('roster-sort-bar');
+  if (bar) bar.classList.toggle('visible', manualMode);
+  if (!manualMode) {
+    // Reset to custom when leaving manual mode
+    rosterSortMode = 'custom';
+    ['custom','surname','number'].forEach(function(m) {
+      var btn = document.getElementById('sort-btn-' + m);
+      if (btn) btn.classList.toggle('sort-active', m === 'custom');
+    });
+  }
+};
+
+// ── PRINT ROSTER ─────────────────────────────────────────────────────────────
+function printRoster() {
+  var teams = currentTeams;
+  if (!teams || !teams.length) { showToast('No roster to print'); return; }
+
+  // Get program name from page title
+  var titleEl = document.querySelector('h1');
+  var programName = titleEl ? titleEl.innerText.replace(/\n/g,' ').trim() : document.title;
+  var dateStr = new Date().toLocaleDateString('en-CA', {
+    weekday:'long', year:'numeric', month:'long', day:'numeric'
+  });
+
+  var html = '<div class="print-header">' +
+    '<div class="print-title">' + programName + '</div>' +
+    '<div class="print-sub">Roster · ' + dateStr + '</div>' +
+  '</div>';
+
+  teams.forEach(function(t) {
+    // Apply current sort to print output
+    var players = _sortedPlayers(t.players);
+    if (t.sub) players = players.concat([t.sub]);
+
+    html += '<div class="print-team-block">' +
+      '<div class="print-team-name">' + t.name + '</div>' +
+      '<table class="print-table"><thead><tr>' +
+        '<th>#</th><th>First Name</th><th>Last Name</th>' +
+        (t.sub ? '<th>Role</th>' : '') +
+      '</tr></thead><tbody>';
+
+    players.forEach(function(p) {
+      var isSub = (p === t.sub);
+      var parts = (p || '').trim().split(/\s+/);
+      var lastName = parts.length > 1 ? parts[parts.length-1] : '';
+      var firstName = parts.length > 1 ? parts.slice(0,-1).join(' ') : parts[0] || '';
+      var num = _jerseyNum(p);
+      html += '<tr>' +
+        '<td>' + (num !== null ? num : '') + '</td>' +
+        '<td>' + firstName + '</td>' +
+        '<td>' + lastName + '</td>' +
+        (t.sub ? '<td>' + (isSub ? 'Rotating Sub' : '') + '</td>' : '') +
+      '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+  });
+
+  var area = document.getElementById('print-roster-area');
+  if (area) { area.innerHTML = html; area.style.display = 'none'; }
+  window.print();
+}
+
 loadPersistedState();   // ← restore tournaments, absentByDate, leaderboard
 _initJerseys(JERSEY_DEFAULTS);
 // Restore numRounds from saved tournament if available
@@ -1864,18 +2141,25 @@ if (activeTournamentDate && tournaments[activeTournamentDate] && tournaments[act
 _initRoundState();
 _renderTabs();
 renderChecklist();
-  // ── RESTORE SAVED STATE (do NOT wipe scores on every page load) ────────
-if (activeTournamentDate && tournaments[activeTournamentDate] &&
-    tournaments[activeTournamentDate].teams &&
-    tournaments[activeTournamentDate].teams.length) {
-  loadAndActivateTournament(activeTournamentDate);
-} else if (_quickRestore()) {
+// ── RESTORE SAVED STATE ────────────────────────────────────────────────────
+// Priority: live scores first (most current), then tournament, then fresh start
+if (_quickRestore()) {
+  // Live state restored (scores/teams/matchups) — render it
   _renderTabs();
   renderTeams(currentTeams);
-  renderScheduleFromState({teams:currentTeams,scores:scores,matchups:matchups,records:records,byeTeams:byeTeams});
+  var _sc = document.getElementById('schedule-container');
+  if (_sc) { _buildRoundPanels(_sc); for(var _r=1;_r<=numRounds;_r++) renderRoundPanel(_r); }
+  document.querySelectorAll('.tab').forEach(function(t,i){t.classList.toggle('active',i===0);});
   updateTournamentManagerUI();
   renderLeaderboard();
+} else if (activeTournamentDate && tournaments[activeTournamentDate] &&
+    tournaments[activeTournamentDate].teams &&
+    tournaments[activeTournamentDate].teams.length) {
+  // Tournament manager flow
+  loadAndActivateTournament(activeTournamentDate);
 } else {
+  // Fresh start
+  _initRoundState();
   rejiggerTeams();
   updateTournamentManagerUI();
   renderLeaderboard();
@@ -1921,5 +2205,8 @@ if (activeTournamentDate && tournaments[activeTournamentDate] &&
     </div>
   </div>
 </div>
+
+<!-- PRINT ROSTER AREA (hidden on screen, revealed in print) -->
+<div id="print-roster-area" style="display:none"></div>
 </body>
 </html>
