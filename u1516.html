@@ -680,33 +680,15 @@ const ALL_PLAYERS = [
   "Qinghai Yang"
 ];
 
-const JERSEY_NUMBERS = {
-  "Alexander Adaralegbe": 40,
-  "Micah Behmann": 4,
-  "Quinn Campbell": 3,
-  "Jeremie Chenier Paquet": 17,
-  "Brayden Cox": 23,
-  "Aidan Gaffney": 1,
-  "Liam Gu": 13,
-  "Daniel Marshall": 6,
-  "Rylen Phantharangsy": 22,
-  "Charlie Poushinsky-Young": 43,
-  "Zeph Rao": 11,
-  "Max Rosher": 9,
-  "Vincent Roy": 10,
-  "Rashed Salman": 42,
-  "Adam Schroeter": 7,
-  "Silas Tustin-Graham": 8,
-  "Qinghai Yang": 12
-};
+
 
 const JERSEY_DEFAULTS = {
-  "Alexander Adaralegbe": 40, "Micah Behmann": 4, "Quinn Campbell": 3,
-  "Jeremie Chenier Paquet": 17, "Brayden Cox": 23, "Aidan Gaffney": 1,
-  "Liam Gu": 13, "Daniel Marshall": 6, "Rylen Phantharangsy": 22,
-  "Charlie Poushinsky-Young": 43, "Zeph Rao": 11, "Max Rosher": 9,
-  "Vincent Roy": 10, "Rashed Salman": 42, "Adam Schroeter": 7,
-  "Silas Tustin-Graham": 8, "Qinghai Yang": 12
+  "Alexander Adaralegbe":40,"Micah Behmann":4,"Quinn Campbell":3,
+  "Jeremie Chenier Paquet":17,"Brayden Cox":23,"Aidan Gaffney":1,
+  "Liam Gu":13,"Daniel Marshall":6,"Rylen Phantharangsy":22,
+  "Charlie Poushinsky-Young":43,"Zeph Rao":11,"Max Rosher":9,
+  "Vincent Roy":10,"Rashed Salman":42,"Adam Schroeter":7,
+  "Silas Tustin-Graham":8,"Qinghai Yang":12
 };
 
 const COLORS = [
@@ -1010,7 +992,7 @@ function renderChecklist() {
   el.innerHTML = ALL_PLAYERS.map((p,i) => {
     const absent = absentSet.has(p);
     return `<div class="player-check-item ${absent?'absent':''}">
-      <div class="pci-avatar" style="${_avatarStyle(p,absent,i)};font-size:${_avatarFontSize(p)};font-weight:700;${organizerUnlocked?'cursor:pointer;':''}" onclick="openJerseyEdit('${_esc(p)}')" title="Click to edit jersey #">${_avatarContent(p)}</div>
+      <div class="pci-avatar" style="${${_avatarStyle(p,absent,i)};font-size:${_avatarFontSize(p)};font-weight:700;${organizerUnlocked?'cursor:pointer;':''}" onclick="openJerseyEdit('${_esc(p)}')" title="Click to edit jersey #">${_avatarContent(p)}</div>
       <div class="pci-name">${p}${absent?'<span class="pci-removed-badge">removed</span>':''}</div>
       <button class="pci-toggle ${absent?'restore':'remove'}" onclick="togglePlayer(${i})">${absent?'Restore':'Remove'}</button>
     </div>`;
@@ -1712,32 +1694,38 @@ function renderPool() {
 // ════════════════════════════════════════════════════════════════════════════
 // JERSEY NUMBER SYSTEM — editable, localStorage-backed
 // ════════════════════════════════════════════════════════════════════════════
+
+// Black avatar when number set; coloured when no number
+
+// ════════════════════════════════════════════════════════════════════════════
+// JERSEY NUMBER SYSTEM
+// ════════════════════════════════════════════════════════════════════════════
 let jerseyNumbers = {};
 let _jerseyEditTarget = null;
 
-function _initJerseys(defaults, storageKey) {
+function _initJerseys(defaults) {
   jerseyNumbers = Object.assign({}, defaults);
   try {
-    const saved = localStorage.getItem(storageKey + '_jerseys');
+    const saved = localStorage.getItem(STORAGE_KEY + '_jerseys');
     if (saved) Object.assign(jerseyNumbers, JSON.parse(saved));
   } catch(e) {}
 }
-function _saveJerseys(storageKey) {
-  try { localStorage.setItem(storageKey + '_jerseys', JSON.stringify(jerseyNumbers)); } catch(e) {}
+function _saveJerseys() {
+  try { localStorage.setItem(STORAGE_KEY + '_jerseys', JSON.stringify(jerseyNumbers)); } catch(e) {}
 }
-// Black avatar when number set; coloured when no number
 function _avatarStyle(name, absent, idx) {
-  if (absent) return 'background:#2a2a2a;color:#555';
-  if (jerseyNumbers[name] !== undefined) return 'background:#1a1a1a;color:#ffffff';
+  if (absent) return 'background:#2a2a2a;color:#666';
+  if (jerseyNumbers[name] !== undefined) return 'background:#111;color:#fff';
   return 'background:' + COLORS[idx % COLORS.length] + ';color:#fff';
 }
 function _avatarContent(name) {
-  return jerseyNumbers[name] !== undefined ? jerseyNumbers[name] : initials(name);
+  const n = jerseyNumbers[name];
+  return n !== undefined ? n : (typeof name === 'string' ? (name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()) : '?');
 }
 function _avatarFontSize(name) {
   const n = jerseyNumbers[name];
   if (n === undefined) return '10px';
-  return (n >= 10) ? '11px' : '13px';
+  return String(n).length > 1 ? '11px' : '13px';
 }
 function _jerseyTag(name) {
   const n = jerseyNumbers[name];
@@ -1752,14 +1740,14 @@ function openJerseyEdit(playerName) {
   const inp = document.getElementById('jersey-modal-input');
   inp.value = jerseyNumbers[playerName] !== undefined ? jerseyNumbers[playerName] : '';
   document.getElementById('jersey-modal').style.display = 'flex';
-  setTimeout(function(){ inp.select(); }, 80);
+  setTimeout(function(){ inp.select(); inp.focus(); }, 80);
 }
 function confirmJerseyEdit() {
   const val = document.getElementById('jersey-modal-input').value.trim();
   const num = parseInt(val, 10);
   if (val !== '' && !isNaN(num) && num >= 0 && num <= 99) {
     jerseyNumbers[_jerseyEditTarget] = num;
-    _saveJerseys(STORAGE_KEY);
+    _saveJerseys();
   }
   closeJerseyModal();
   renderChecklist();
@@ -1767,7 +1755,7 @@ function confirmJerseyEdit() {
 }
 function clearJerseyEdit() {
   delete jerseyNumbers[_jerseyEditTarget];
-  _saveJerseys(STORAGE_KEY);
+  _saveJerseys();
   closeJerseyModal();
   renderChecklist();
   renderTeams(currentTeams);
@@ -1777,7 +1765,8 @@ function closeJerseyModal() {
   _jerseyEditTarget = null;
 }
 
-loadPersistedState();   // ← restore tournaments, absentByDate, leaderboard
+loadPersistedState();
+_initJerseys(JERSEY_DEFAULTS);   // ← restore tournaments, absentByDate, leaderboard
 renderChecklist();
 rejiggerTeams();
 updateTournamentManagerUI();
