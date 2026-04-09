@@ -462,6 +462,11 @@
   .edit-matchup-btn{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:5px 12px;border-radius:4px;cursor:pointer;background:rgba(123,47,190,.12);color:#c084fc;border:1px solid rgba(123,47,190,.35);margin-left:10px;vertical-align:middle;transition:all .2s}
   .edit-matchup-btn:hover{background:rgba(123,47,190,.25)}
 
+
+  .round-num-btn{font-family:'DM Mono',monospace;font-size:12px;width:36px;height:36px;border-radius:6px;border:1px solid var(--border-soft);background:transparent;color:var(--muted);cursor:pointer;transition:all .2s;font-weight:600}
+  .round-num-btn:hover{border-color:var(--gold);color:var(--gold)}
+  .round-num-btn.active-rnd{background:rgba(245,166,35,.15);color:var(--gold);border-color:rgba(245,166,35,.5)}
+
 </style>
 </head>
 <body>
@@ -488,9 +493,9 @@
   <div class="chip"><div class="chip-val" id="stat-teams">8</div><div class="chip-lbl">Teams</div></div>
   <div class="chip"><div class="chip-val" id="stat-players">0</div><div class="chip-lbl">Players Active</div></div>
   <div class="chip"><div class="chip-val">4</div><div class="chip-lbl">Courts</div></div>
-  <div class="chip"><div class="chip-val">4</div><div class="chip-lbl">Rounds</div></div>
-  <div class="chip"><div class="chip-val">16</div><div class="chip-lbl">Total Games</div></div>
-  <div class="chip"><div class="chip-val">4</div><div class="chip-lbl">Games / Team</div></div>
+  <div class="chip"><div class="chip-val" id="stat-rounds">4</div><div class="chip-lbl">Rounds</div></div>
+  <div class="chip"><div class="chip-val" id="stat-games">16</div><div class="chip-lbl">Total Games</div></div>
+  <div class="chip"><div class="chip-val" id="stat-gpt">4</div><div class="chip-lbl">Games / Team</div></div>
 </div>
 
 <!-- FORMAT -->
@@ -520,6 +525,24 @@
       <button class="format-btn" id="btn-four" onclick="setFormat('fourvfour')">4v4 Ladder</button>
       <button class="format-btn" id="btn-two" onclick="setFormat('twovtwo')">2v2</button>
       <button class="format-btn" id="btn-scrimmage" onclick="setFormat('scrimmage')">2-Team Scrimmage</button>
+    </div>
+  </div>
+
+    <!-- ROUND COUNT (organizer only) -->
+  <div id="round-count-wrap" style="display:none;margin-top:10px">
+    <div class="format-note" style="margin-bottom:8px">
+      <strong>Rounds per Session:</strong> Set how many rounds to play today. Resets current schedule.
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase">Rounds:</span>
+      <div style="display:flex;gap:6px;">
+        <button class="round-num-btn" id="rnd-btn-2" onclick="setNumRounds(2)">2</button>
+        <button class="round-num-btn" id="rnd-btn-3" onclick="setNumRounds(3)">3</button>
+        <button class="round-num-btn active-rnd" id="rnd-btn-4" onclick="setNumRounds(4)">4</button>
+        <button class="round-num-btn" id="rnd-btn-5" onclick="setNumRounds(5)">5</button>
+        <button class="round-num-btn" id="rnd-btn-6" onclick="setNumRounds(6)">6</button>
+      </div>
+      <span id="rnd-label" style="font-family:'DM Mono',monospace;font-size:10px;color:var(--muted)">4 rounds</span>
     </div>
   </div>
 
@@ -576,12 +599,7 @@
 
 <!-- SCHEDULE -->
 <div class="sec schedule-sec">Schedule</div>
-<div class="tab-row">
-  <button class="tab active" onclick="showRound(1)">Round 1</button>
-  <button class="tab" onclick="showRound(2)">Round 2</button>
-  <button class="tab" onclick="showRound(3)">Round 3</button>
-  <button class="tab" onclick="showRound(4)">Round 4 — Final</button>
-</div>
+<div class="tab-row" id="tab-row"></div>
 <div id="schedule-container"></div>
 
 <!-- STANDINGS KEY -->
@@ -796,6 +814,7 @@ function loadTournament(date) {
   matchups = t.matchups;
   records = t.records;
   byeTeams = t.byeTeams;
+  if(t.numRounds){numRounds=t.numRounds;_renderTabs();}
   return true;
 }
 
@@ -808,6 +827,8 @@ function saveTournamentState() {
   t.matchups = matchups;
   t.records = records;
   t.byeTeams = byeTeams;
+  t.numRounds = numRounds;
+  t.numRounds = numRounds;
   // Sync absentSet into absentByDate before persisting
   absentByDate[activeTournamentDate] = [...absentSet];
   persistState();
@@ -1072,7 +1093,7 @@ function unlockScore(round, courtIdx) {
 }
 
 function clearRoundsAfter(round) {
-  for (let r=round+1; r<=4; r++) {
+  for (let r=round+1; r<=numRounds; r++) {
     Object.entries(scores[r]).forEach(([ci,s]) => {
       if (s&&s.locked) {
         if (s.scoreA>s.scoreB) { if(records[s.teamAId]) records[s.teamAId].w=Math.max(0,records[s.teamAId].w-1); if(records[s.teamBId]) records[s.teamBId].l=Math.max(0,records[s.teamBId].l-1); }
@@ -1081,7 +1102,7 @@ function clearRoundsAfter(round) {
     });
     scores[r]={}; matchups[r]=[];
   }
-  for (let r=round+1; r<=4; r++) renderRoundPanel(r);
+  for (let r=round+1; r<=numRounds; r++) renderRoundPanel(r);
   renderTeams(currentTeams);
 }
 
@@ -1093,7 +1114,7 @@ function checkAndBuildNextRound(completedRound) {
   if (!ms||ms.length===0) return;
   const allDone = ms.every((_,i) => scores[completedRound][i]&&scores[completedRound][i].locked);
   if (!allDone) return;
-  if (completedRound>=4) { finalizeTournament(); return; }
+  if (completedRound>=numRounds) { finalizeTournament(); return; }
   const nextRound = completedRound+1;
   const winners=[],losers=[];
   ms.forEach((m,i) => {
@@ -1350,12 +1371,8 @@ function finalizeTournamentByDate(date) {
 
 function renderScheduleFromState(t) {
   const container = document.getElementById('schedule-container');
-  container.innerHTML = `
-    <div class="round-panel active" id="round-1"></div>
-    <div class="round-panel" id="round-2"></div>
-    <div class="round-panel" id="round-3"></div>
-    <div class="round-panel" id="round-4"></div>`;
-  for (let r=1; r<=4; r++) renderRoundPanel(r);
+  _buildRoundPanels(container);
+  for (let r=1; r<=numRounds; r++) renderRoundPanel(r);
   document.querySelectorAll('.tab').forEach((tb,i) => tb.classList.toggle('active', i===0));
 }
 
@@ -1364,9 +1381,7 @@ function renderScheduleFromState(t) {
 // ═══════════════════════════════════════════════════════════════════════════
 function renderSchedule(teams) {
   const container = document.getElementById('schedule-container');
-  scores={1:{},2:{},3:{},4:{}};
-  matchups={1:[],2:[],3:[],4:[]};
-  byeTeams={1:null,2:null,3:null,4:null};
+  _initRoundState();
   if (teams.length<2) { container.innerHTML='<div style="padding:0 24px 20px;color:var(--muted);font-family:DM Mono,monospace;font-size:12px">Not enough teams.</div>'; return; }
   container.innerHTML=`<div class="round-panel active" id="round-1"></div><div class="round-panel" id="round-2"></div><div class="round-panel" id="round-3"></div><div class="round-panel" id="round-4"></div>`;
   const shuffled=shuffle([...teams]);
@@ -1374,7 +1389,7 @@ function renderSchedule(teams) {
   for (let i=0;i<shuffled.length-1;i+=2) r1.push({teamA:shuffled[i],teamB:shuffled[i+1],tier:'open'});
   if (shuffled.length%2===1) byeTeams[1]=shuffled[shuffled.length-1];
   matchups[1]=r1;
-  for (let r=1;r<=4;r++) renderRoundPanel(r);
+  for(var r=1;r<=numRounds;r++) renderRoundPanel(r);
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',i===0));
   saveTournamentState();
 }
@@ -1398,7 +1413,7 @@ function resetTournament() { document.getElementById('reset-modal').classList.ad
 function closeResetModal() { document.getElementById('reset-modal').classList.remove('open'); }
 function confirmReset() {
   closeResetModal();
-  scores={1:{},2:{},3:{},4:{}}; matchups={1:[],2:[],3:[],4:[]}; byeTeams={1:null,2:null,3:null,4:null};
+  _initRoundState();
   initRecords(currentTeams);
   saveTournamentState();
   renderTeams(currentTeams);
@@ -1413,7 +1428,7 @@ function confirmReset() {
 function setFormat(fmt) {
   if (fmt===gameFormat) return;
   gameFormat=fmt;
-  scores={1:{},2:{},3:{},4:{}}; matchups={1:[],2:[],3:[],4:[]}; byeTeams={1:null,2:null,3:null,4:null};
+  _initRoundState();
   ['btn-three','btn-four','btn-scrimmage','btn-two'].forEach(id=>{const el=document.getElementById(id);if(el)el.className='format-btn';});
   const map={[FORMAT.THREE]:{id:'btn-three',cls:'active-three'},[FORMAT.FOUR]:{id:'btn-four',cls:'active-four'},[FORMAT.SCRIMMAGE]:{id:'btn-scrimmage',cls:'active-scrimmage'},[FORMAT.TWO]:{id:'btn-two',cls:'active-two'}};
   const m=map[fmt]; if(m){const el=document.getElementById(m.id);if(el)el.className=`format-btn ${m.cls}`;}
@@ -1497,7 +1512,8 @@ function submitPin() {
     updateTournamentManagerUI();
     renderLeaderboard();
     var _mb=document.getElementById('manual-mode-btn');if(_mb)_mb.style.display='inline-block';
-    for(var _r=1;_r<=4;_r++) renderRoundPanel(_r);
+    var _rcw=document.getElementById('round-count-wrap');if(_rcw)_rcw.style.display='block';
+    for(var _r=1;_r<=numRounds;_r++) renderRoundPanel(_r);
     showToast('Organizer mode unlocked');
   } else {
     document.getElementById('pin-error').textContent='Incorrect PIN';
@@ -1725,7 +1741,7 @@ function _mbClearBye(){ _mbBye=null; _mbRender(); }
 function applyManualMatchups(){
   if(!_mbPairs.length) return;
   // Clear scores for this round and all later rounds
-  for(var r=_mbRound;r<=4;r++){
+  for(var r=_mbRound;r<=numRounds;r++){
     if(scores[r]){ Object.values(scores[r]).forEach(function(s){
       if(s&&s.locked){ if(s.scoreA>s.scoreB){if(records[s.teamAId])records[s.teamAId].w=Math.max(0,records[s.teamAId].w-1);if(records[s.teamBId])records[s.teamBId].l=Math.max(0,records[s.teamBId].l-1);}
         else{if(records[s.teamBId])records[s.teamBId].w=Math.max(0,records[s.teamBId].w-1);if(records[s.teamAId])records[s.teamAId].l=Math.max(0,records[s.teamAId].l-1);}}});
@@ -1737,7 +1753,7 @@ function applyManualMatchups(){
   byeTeams[_mbRound]=_mbBye||null;
   saveTournamentState();
   renderTeams(currentTeams);
-  for(var rr=1;rr<=4;rr++) renderRoundPanel(rr);
+  for(var rr=1;rr<=numRounds;rr++) renderRoundPanel(rr);
   showRound(_mbRound);
   closeMatchupBuilder();
   showToast('Round '+_mbRound+' matchups applied');
@@ -1746,6 +1762,60 @@ function applyManualMatchups(){
 function closeMatchupBuilder(){
   document.getElementById('matchup-builder').style.display='none';
   _mbRound=null; _mbPairs=[]; _mbSel=null; _mbBye=null;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DYNAMIC ROUND COUNT
+// ═══════════════════════════════════════════════════════════════════════════
+var numRounds = 4;
+
+function setNumRounds(n) {
+  n = parseInt(n);
+  if (n === numRounds) return;
+  numRounds = n;
+  [2,3,4,5,6].forEach(function(i){
+    var btn=document.getElementById('rnd-btn-'+i);
+    if(btn) btn.classList.toggle('active-rnd', i===n);
+  });
+  var lbl=document.getElementById('rnd-label');
+  if(lbl) lbl.textContent=n+' rounds';
+  var rChip=document.getElementById('stat-rounds');
+  if(rChip) rChip.textContent=n;
+  var gChip=document.getElementById('stat-games');
+  var teams=currentTeams.length||8;
+  if(gChip) gChip.textContent=Math.floor(teams/2)*n;
+  var gpChip=document.getElementById('stat-gpt');
+  if(gpChip) gpChip.textContent=n;
+  _initRoundState();
+  _renderTabs();
+  renderSchedule(currentTeams);
+  renderTeams(currentTeams);
+  showToast('Rounds set to '+n);
+}
+
+function _initRoundState() {
+  scores={}; matchups={}; byeTeams={};
+  for(var r=1;r<=numRounds;r++){scores[r]={};matchups[r]=[];byeTeams[r]=null;}
+}
+
+function _renderTabs() {
+  var tabRow=document.getElementById('tab-row');
+  if(!tabRow) return;
+  var tabs='';
+  for(var r=1;r<=numRounds;r++){
+    var label = r===numRounds ? 'Round '+r+' — Final' : 'Round '+r;
+    tabs+='<button class="tab'+(r===1?' active':'')+'" onclick="showRound('+r+')">'+label+'</button>';
+  }
+  tabRow.innerHTML=tabs;
+}
+
+function _buildRoundPanels(container) {
+  var h='';
+  for(var r=1;r<=numRounds;r++){
+    h+='<div class="round-panel'+(r===1?' active':'')+'" id="round-'+r+'"></div>';
+  }
+  container.innerHTML=h;
 }
 
 loadPersistedState();   // ← restore tournaments, absentByDate, leaderboard
