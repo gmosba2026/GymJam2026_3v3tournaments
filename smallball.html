@@ -2508,11 +2508,12 @@ function doPrint(mode) {
   }
   var pw = window.open('', '_blank', 'width=900,height=700');
   if (!pw) { showToast('Pop-up blocked - please allow pop-ups and try again'); return; }
-  pw.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Print</title>'
+  var _html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Print</title>'
     + '<style>body{margin:24px 32px;font-family:Arial,sans-serif;color:#000;background:#fff}'
     + '@media print{body{margin:16px}}</style></head><body>'
-    + body + '
-</body></html>');
+    + body
+    + '</body></html>';
+  pw.document.write(_html);
   pw.document.close();
   setTimeout(function(){ pw.print(); }, 400);
 }
