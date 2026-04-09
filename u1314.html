@@ -429,6 +429,54 @@
   .active-two { background: rgba(253,121,168,0.15) !important; color: #fd79a8 !important;
     border-color: rgba(253,121,168,0.4) !important; font-weight: 600 !important; }
 
+
+  /* ── MANUAL TEAM EDITOR ─────────────────────────────────────────────── */
+  .manual-mode-btn {
+    font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1px;
+    padding: 8px 14px; border-radius: 4px; cursor: pointer; text-transform: uppercase;
+    border: 1px solid rgba(123,47,190,0.4); background: rgba(123,47,190,0.08);
+    color: #c084fc; transition: all 0.2s; display: none;
+  }
+  .manual-mode-btn:hover { background: rgba(123,47,190,0.18); }
+  .manual-mode-btn.active { background: rgba(123,47,190,0.85); color: #fff; border-color: #7b2fbe; }
+  .player-row.clickable { cursor: pointer; transition: background 0.15s, color 0.15s; }
+  .player-row.clickable:hover { background: rgba(230,57,70,0.1); border-radius: 4px; }
+  .player-row.clickable:hover .rm-hint { opacity: 1; }
+  .player-row.is-moving { background: rgba(245,166,35,0.18); border-radius: 4px; color: var(--gold); }
+  .rm-hint { opacity: 0; margin-left: auto; font-family: 'DM Mono', monospace;
+    font-size: 9px; color: var(--red); letter-spacing: 0.5px; transition: opacity 0.15s; }
+  .team-card.droppable { border-color: rgba(245,166,35,0.7) !important;
+    border-style: dashed !important; cursor: pointer;
+    box-shadow: 0 0 14px rgba(245,166,35,0.18); }
+  .team-card.droppable:hover { border-color: var(--gold) !important; }
+  .player-pool-wrap {
+    margin: 8px 24px 0; display: none;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .pool-title { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 1.5px;
+    color: var(--muted); text-transform: uppercase; margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px; }
+  .pool-count-badge { font-size: 10px; background: var(--surface2);
+    border: 1px solid var(--border-soft); border-radius: 10px; padding: 1px 8px; }
+  .pool-chips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 28px; }
+  .pool-chip { background: var(--surface2); border: 1.5px solid var(--border-soft);
+    border-radius: 20px; padding: 5px 14px; font-size: 12px; cursor: pointer;
+    transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
+  .pool-chip:hover { border-color: rgba(245,166,35,0.5); color: var(--gold); }
+  .pool-chip.chip-selected { background: rgba(245,166,35,0.2); border-color: var(--gold);
+    color: var(--gold); font-weight: 600; box-shadow: 0 0 8px rgba(245,166,35,0.25); }
+  .move-bar {
+    display: none; background: rgba(245,166,35,0.1); border: 1px solid rgba(245,166,35,0.35);
+    border-radius: 6px; padding: 8px 16px; margin: 6px 24px 0;
+    font-family: 'DM Mono', monospace; font-size: 11px; color: var(--gold);
+    letter-spacing: 0.5px; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .move-bar.active { display: flex; }
+  .move-cancel-btn { margin-left: auto; background: rgba(230,57,70,0.15); color: var(--red);
+    border: 1px solid rgba(230,57,70,0.3); font-family: 'DM Mono', monospace; font-size: 10px;
+    padding: 4px 10px; border-radius: 4px; cursor: pointer; letter-spacing: 1px;
+    text-transform: uppercase; }
+
 </style>
 </head>
 <body>
@@ -504,6 +552,7 @@
       <button class="restore-all-btn" onclick="restoreAll()">Restore All Players</button>
       <button class="restore-all-btn reset-btn" onclick="resetTournament()">🔄 Reset Tournament</button>
       <button class="share-btn" onclick="shareApp()">📤 Share</button>
+      <button class="manual-mode-btn" id="manual-mode-btn" onclick="toggleManualMode()">✏️ Manual Mode</button>
     </div>
     <div class="absent-count" id="absent-count" style="display:none">0 absent</div>
   </div>
@@ -529,6 +578,24 @@
 
 <div class="sec">Rosters</div>
 <div class="teams-grid" id="teams-grid"></div>
+
+<!-- MOVE BAR -->
+<div class="move-bar" id="move-bar">
+  <span>Moving → <strong id="moving-name-lbl" style="color:#fff"></strong></span>
+  <span style="color:var(--muted);font-size:10px">Click a team to place · click player again to cancel</span>
+  <button class="move-cancel-btn" onclick="cancelMove()">✕ Cancel</button>
+</div>
+
+<!-- PLAYER POOL -->
+<div class="player-pool-wrap" id="player-pool-wrap">
+  <div class="pool-title">
+    🔄 Unassigned Pool
+    <span class="pool-count-badge" id="pool-count-badge">0</span>
+  </div>
+  <div class="pool-chips" id="pool-chips">
+    <span style="color:var(--muted);font-size:12px;font-family:'DM Mono',monospace">All players assigned</span>
+  </div>
+</div>
 
 <!-- SCHEDULE -->
 <div class="sec schedule-sec">Schedule</div>
@@ -954,13 +1021,39 @@ function renderTeams(teams) {
     document.getElementById('stat-players').textContent = ALL_PLAYERS.length - absentSet.size;
     return;
   }
+  const _canEdit   = organizerUnlocked && manualMode;
+  const _isMoving  = !!movingPlayer;
   grid.innerHTML = teams.map(t => {
-    const r = records[t.id]||{w:0,l:0};
-    return `<div class="team-card ${t.players.length<(gameFormat===FORMAT.FOUR?4:3)?'short-handed':''}">
+    const r          = records[t.id]||{w:0,l:0};
+    const droppable  = _canEdit && _isMoving;
+    const teamAttrs  = droppable ? `onclick="dropOnTeam(${t.id})"` : '';
+    const playerRows = t.players.map(p => {
+      const isMov = _canEdit && movingPlayer && movingPlayer.name === p;
+      if (_canEdit) {
+        return `<div class="player-row clickable ${isMov?'is-moving':''}"
+          onclick="event.stopPropagation();sendToPool('${_esc(p)}',${t.id},false)"
+          title="Click to move to pool">
+          <div class="player-dot"></div><div>${p}</div>
+          <span class="rm-hint">→ pool</span></div>`;
+      }
+      return `<div class="player-row"><div class="player-dot"></div><div>${p}</div></div>`;
+    }).join('');
+    const subRow = t.sub ? (() => {
+      const isMov = _canEdit && movingPlayer && movingPlayer.name === t.sub;
+      if (_canEdit) {
+        return `<div class="player-row clickable ${isMov?'is-moving':''}"
+          onclick="event.stopPropagation();sendToPool('${_esc(t.sub)}',${t.id},true)"
+          title="Click to move to pool">
+          <div class="player-dot sub"></div><div>${t.sub}</div>
+          <div class="tag-sub">Rot.</div>
+          <span class="rm-hint">→ pool</span></div>`;
+      }
+      return `<div class="player-row"><div class="player-dot sub"></div><div>${t.sub}</div><div class="tag-sub">Rot.</div></div>`;
+    })() : '';
+    return `<div class="team-card ${t.players.length<(gameFormat===FORMAT.FOUR?4:3)?'short-handed':''} ${droppable?'droppable':''}" ${teamAttrs}>
       <div class="team-num">${t.id}</div>
       <div class="team-name">${t.name}</div>
-      ${t.players.map(p=>`<div class="player-row"><div class="player-dot"></div><div>${p}</div></div>`).join('')}
-      ${t.sub?`<div class="player-row"><div class="player-dot sub"></div><div>${t.sub}</div><div class="tag-sub">Rot.</div></div>`:''}
+      ${playerRows}${subRow}
       <div class="team-count">${t.players.length}p${t.sub?' + 1 rot.':''} &nbsp;·&nbsp; <span style="color:var(--green)">${r.w}W</span> <span style="color:var(--red)">${r.l}L</span></div>
     </div>`;
   }).join('');
@@ -1347,6 +1440,7 @@ function renderSchedule(teams) {
 // REJIGGER / RESET
 // ═══════════════════════════════════════════════════════════════════════════
 function rejiggerTeams() {
+  manualPool = []; movingPlayer = null;  // reset manual state on auto-gen
   const available = ALL_PLAYERS.filter(p=>!absentSet.has(p));
   const teams = buildTeams(available);
   initRecords(teams);
@@ -1460,6 +1554,7 @@ function submitPin() {
     updateTournamentManagerUI();
     renderLeaderboard();
     showToast('Organizer mode unlocked');
+    const mmBtn=document.getElementById('manual-mode-btn'); if(mmBtn) mmBtn.style.display='inline-block';
   } else {
     document.getElementById('pin-error').textContent='Incorrect PIN';
     document.getElementById('pin-input').value='';
@@ -1474,12 +1569,118 @@ function lockOrganizer() {
   const badge=document.getElementById('organizer-badge');
   badge.classList.add('locked');
   badge.innerHTML='🔒 Organizer Mode — Tap to Unlock';
+  manualMode=false; movingPlayer=null; manualPool=[];
+  const poolWrap2=document.getElementById('player-pool-wrap'); if(poolWrap2) poolWrap2.style.display='none';
+  const mmBtn2=document.getElementById('manual-mode-btn'); if(mmBtn2){mmBtn2.style.display='none';mmBtn2.classList.remove('active');mmBtn2.textContent='✏️ Manual Mode';}
   showToast('Organizer mode locked');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════════════════
+// MANUAL TEAM EDITOR
+// ════════════════════════════════════════════════════════════════════════════
+let manualMode   = false;
+let movingPlayer = null;  // { name, fromTeamId, isSub }
+let manualPool   = [];    // players not on any team
+
+function toggleManualMode() {
+  manualMode = !manualMode;
+  const btn = document.getElementById('manual-mode-btn');
+  if (btn) { btn.classList.toggle('active', manualMode);
+    btn.textContent = manualMode ? '✏️ Manual: ON' : '✏️ Manual Mode'; }
+  if (!manualMode) { movingPlayer = null; }
+  const poolWrap = document.getElementById('player-pool-wrap');
+  if (poolWrap) poolWrap.style.display = manualMode ? 'block' : 'none';
+  renderTeams(currentTeams);
+  renderPool();
+  _refreshMoveBar();
+}
+
+function _esc(s) { return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+function _refreshMoveBar() {
+  const bar  = document.getElementById('move-bar');
+  const lbl  = document.getElementById('moving-name-lbl');
+  if (!bar) return;
+  if (movingPlayer) { bar.classList.add('active'); if(lbl) lbl.textContent = movingPlayer.name; }
+  else              { bar.classList.remove('active'); }
+}
+
+// Click a player already on a team → send to pool
+function sendToPool(playerName, fromTeamId, isSub) {
+  if (!organizerUnlocked || !manualMode) return;
+  if (movingPlayer && movingPlayer.name === playerName) { cancelMove(); return; }
+  const src = currentTeams.find(t => t.id === fromTeamId);
+  if (src) {
+    if (isSub) src.sub = null;
+    else       src.players = src.players.filter(p => p !== playerName);
+  }
+  if (!manualPool.includes(playerName)) manualPool.push(playerName);
+  movingPlayer = null;
+  renderTeams(currentTeams); renderPool(); _refreshMoveBar();
+}
+
+// Click a player in the pool → select them for placement
+function selectFromPool(playerName) {
+  if (!organizerUnlocked || !manualMode) return;
+  if (movingPlayer && movingPlayer.name === playerName) { cancelMove(); return; }
+  movingPlayer = { name: playerName, fromTeamId: 'pool', isSub: false };
+  renderPool(); renderTeams(currentTeams); _refreshMoveBar();
+}
+
+// Click a team card → drop selected player there
+function dropOnTeam(teamId) {
+  if (!movingPlayer || !organizerUnlocked || !manualMode) return;
+  const { name, fromTeamId, isSub } = movingPlayer;
+  if (fromTeamId === 'pool') {
+    manualPool = manualPool.filter(p => p !== name);
+  } else {
+    const src = currentTeams.find(t => t.id === fromTeamId);
+    if (src) { if (isSub) src.sub = null; else src.players = src.players.filter(p => p !== name); }
+  }
+  const target = currentTeams.find(t => t.id === teamId);
+  if (target) target.players.push(name);
+  movingPlayer = null;
+  renderTeams(currentTeams); renderPool(); _refreshMoveBar();
+}
+
+function cancelMove() {
+  movingPlayer = null;
+  renderTeams(currentTeams); renderPool(); _refreshMoveBar();
+}
+
+// Move a player directly from one team to another (no pool stop)
+function moveToTeam(playerName, fromTeamId, isSub, targetTeamId) {
+  if (!organizerUnlocked || !manualMode) return;
+  if (fromTeamId === targetTeamId) return;
+  const src = currentTeams.find(t => t.id === fromTeamId);
+  if (src) { if (isSub) src.sub = null; else src.players = src.players.filter(p => p !== playerName); }
+  const tgt = currentTeams.find(t => t.id === targetTeamId);
+  if (tgt) tgt.players.push(playerName);
+  movingPlayer = null;
+  renderTeams(currentTeams); renderPool(); _refreshMoveBar();
+}
+
+function renderPool() {
+  const chips = document.getElementById('pool-chips');
+  const badge = document.getElementById('pool-count-badge');
+  if (!chips) return;
+  if (badge) badge.textContent = manualPool.length;
+  if (!manualPool.length) {
+    chips.innerHTML = '<span style="color:var(--muted);font-size:12px;font-family:\'DM Mono\',monospace">All players assigned</span>';
+    return;
+  }
+  chips.innerHTML = manualPool.map(p => {
+    const sel = movingPlayer && movingPlayer.name === p;
+    return `<span class="pool-chip ${sel ? 'chip-selected' : ''}"
+      onclick="selectFromPool('${_esc(p)}')">${p}</span>`;
+  }).join('');
+}
+
+
 loadPersistedState();   // ← restore tournaments, absentByDate, leaderboard
 document.getElementById("stat-players").textContent = ALL_PLAYERS.length;
 renderChecklist();
