@@ -436,7 +436,7 @@
   .player-row.clickable{cursor:pointer;transition:background .15s}
   .player-row.clickable:hover{background:rgba(230,57,70,0.1);border-radius:4px}
   .player-row.clickable:hover .rm-hint{opacity:1}
-  .rm-hint{opacity:0;margin-left:auto;font-family:'DM Mono',monospace;font-size:9px;color:var(--red);letter-spacing:.5px;transition:opacity .15s;flex-shrink:0}
+  .rm-hint{opacity:0;margin-left:auto;font-family:'DM Mono',monospace;font-size:9px;color:var(--red);transition:opacity .15s;flex-shrink:0}
   .team-card.droppable{border-color:rgba(245,166,35,.7)!important;border-style:dashed!important;cursor:pointer}
   .player-pool-wrap{margin:8px 24px 0;display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
   .pool-title{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px}
@@ -447,7 +447,7 @@
   .pool-chip.chip-selected{background:rgba(245,166,35,.2);border-color:var(--gold);color:var(--gold);font-weight:600}
   .move-bar{display:none;background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.35);border-radius:6px;padding:8px 16px;margin:6px 24px 0;font-family:'DM Mono',monospace;font-size:11px;color:var(--gold);align-items:center;gap:12px;flex-wrap:wrap}
   .move-bar.active{display:flex}
-  .move-cancel-btn{margin-left:auto;background:rgba(230,57,70,.15);color:var(--red);border:1px solid rgba(230,57,70,.3);font-family:'DM Mono',monospace;font-size:10px;padding:4px 10px;border-radius:4px;cursor:pointer;letter-spacing:1px;text-transform:uppercase}
+  .move-cancel-btn{margin-left:auto;background:rgba(230,57,70,.15);color:var(--red);border:1px solid rgba(230,57,70,.3);font-family:'DM Mono',monospace;font-size:10px;padding:4px 10px;border-radius:4px;cursor:pointer;text-transform:uppercase}
 
 </style>
 </head>
@@ -551,19 +551,14 @@
 <div class="sec">Rosters</div>
 <div class="teams-grid" id="teams-grid"></div>
 
-<!-- MOVE BAR -->
 <div class="move-bar" id="move-bar">
   <span>Moving → <strong id="moving-name-lbl" style="color:#fff"></strong></span>
-  <span style="color:var(--muted);font-size:10px">Click a team card to place · click player again to cancel</span>
+  <span style="color:var(--muted);font-size:10px">Click a team to place · click player again to cancel</span>
   <button class="move-cancel-btn" onclick="cancelMove()">✕ Cancel</button>
 </div>
-<!-- PLAYER POOL -->
 <div class="player-pool-wrap" id="player-pool-wrap">
-  <div class="pool-title">🔄 Unassigned Pool
-    <span class="pool-count-badge" id="pool-count-badge">0</span></div>
-  <div class="pool-chips" id="pool-chips">
-    <span style="color:var(--muted);font-size:12px;font-family:'DM Mono',monospace">All players assigned</span>
-  </div>
+  <div class="pool-title">🔄 Unassigned Pool <span class="pool-count-badge" id="pool-count-badge">0</span></div>
+  <div class="pool-chips" id="pool-chips"><span style="color:var(--muted);font-size:12px;font-family:'DM Mono',monospace">All players assigned</span></div>
 </div>
 
 <!-- SCHEDULE -->
@@ -915,8 +910,7 @@ function buildTeams(players) {
   }
 
   const playersPerTeam = gameFormat === FORMAT.FOUR ? 4 : gameFormat === FORMAT.TWO ? 2 : 3;
-  const maxT=Math.floor(n/playersPerTeam);
-  const evenT=maxT%2===0?maxT:maxT-1;
+  const maxT=Math.floor(n/playersPerTeam), evenT=maxT%2===0?maxT:maxT-1;
   const numTeams=Math.min(8,evenT);
   if (numTeams < 2) return [];
 
@@ -942,7 +936,7 @@ function renderChecklist() {
   el.innerHTML = ALL_PLAYERS.map((p,i) => {
     const absent = absentSet.has(p);
     return `<div class="player-check-item ${absent?'absent':''}">
-      <div class="pci-avatar" style="background:${_jBg(p,absent,i)};color:${_jColor(p,absent)};font-size:${_jFs(p)};font-weight:700;${organizerUnlocked?'cursor:pointer;':''}" onclick="openJerseyEdit(this.dataset.nm)" data-nm="${p.replace(/"/g,'&quot;')}" title="Edit jersey #">${_jVal(p,initials(p))}</div>
+      <div class="pci-avatar" style="background:${_jBg(p,absent,i)};color:${_jColor(p,absent)};font-size:${_jFs(p)};font-weight:700;${organizerUnlocked?'cursor:pointer;':''}" onclick="openJerseyEdit(this.getAttribute('data-nm'))" data-nm="${_dnm(p)}" title="Edit jersey #">${_jVal(p,initials(p))}</div>
       <div class="pci-name">${p}${absent?'<span class="pci-removed-badge">removed</span>':''}</div>
       <button class="pci-toggle ${absent?'restore':'remove'}" onclick="togglePlayer(${i})">${absent?'Restore':'Remove'}</button>
     </div>`;
@@ -983,12 +977,11 @@ function renderTeams(teams) {
   }
   grid.innerHTML = teams.map(t => {
     const r = records[t.id]||{w:0,l:0};
-    var _drop=organizerUnlocked&&manualMode&&!!movingPlayer;
-    return `<div class="team-card ${t.players.length<(gameFormat===FORMAT.FOUR?4:3)?'short-handed':''} ${_drop?'droppable':''}" ${_drop?`onclick="dropOnTeam(${t.id})"`:''}}>
+    return `<div class="team-card ${t.players.length<(gameFormat===FORMAT.FOUR?4:3)?'short-handed':''} ${organizerUnlocked&&manualMode&&movingPlayer?'droppable':''}" onclick="dropOnTeam(${t.id})">
       <div class="team-num">${t.id}</div>
       <div class="team-name">${t.name}</div>
-      ${(function(){var ce=organizerUnlocked&&manualMode;return t.players.map(function(p){var jt=_jTag(p);if(ce)return '<div class="player-row clickable" onclick="event.stopPropagation();sendToPool(\''+p.replace(/\'/g,\'\\\'\')+'\',' +t.id+ ',false)"><div class="player-dot"></div><div style="flex:1">'+p+'</div>'+jt+'<span class="rm-hint">→ pool</span></div>';return '<div class="player-row"><div class="player-dot"></div><div style="flex:1">'+p+'</div>'+jt+'</div>';}).join('');})()}
-      ${t.sub?(function(){var jt=_jTag(t.sub);if(organizerUnlocked&&manualMode)return '<div class="player-row clickable" onclick="event.stopPropagation();sendToPool(\''+t.sub.replace(/\'/g,\'\\\'\')+'\',' +t.id+ ',true)"><div class="player-dot sub"></div><div style="flex:1">'+t.sub+'</div>'+jt+'<div class="tag-sub">Rot.</div><span class="rm-hint">→ pool</span></div>';return '<div class="player-row"><div class="player-dot sub"></div><div style="flex:1">'+t.sub+'</div>'+jt+'<div class="tag-sub">Rot.</div></div>';})():''}
+      ${t.players.map(p=>_pr(p,t.id,false)).join('')}
+      ${t.sub?_pr(t.sub,t.id,true):''}
       <div class="team-count">${t.players.length}p${t.sub?' + 1 rot.':''} &nbsp;·&nbsp; <span style="color:var(--green)">${r.w}W</span> <span style="color:var(--red)">${r.l}L</span></div>
     </div>`;
   }).join('');
@@ -1506,7 +1499,7 @@ function lockOrganizer() {
   badge.innerHTML='🔒 Organizer Mode — Tap to Unlock';
   manualMode=false;movingPlayer=null;manualPool=[];
   var _pw=document.getElementById('player-pool-wrap');if(_pw)_pw.style.display='none';
-  var _mb2=document.getElementById('manual-mode-btn');if(_mb2){_mb2.style.display='none';_mb2.classList.remove('active');_mb2.textContent='\u270f\ufe0f Manual Mode';}
+  var _mb2=document.getElementById('manual-mode-btn');if(_mb2){_mb2.style.display='none';_mb2.classList.remove('active');_mb2.textContent='✏️ Manual Mode';}
   showToast('Organizer mode locked');
 }
 
@@ -1514,36 +1507,123 @@ function lockOrganizer() {
 // INIT
 // ═══════════════════════════════════════════════════════════════════════════
 
-var manualMode=false,movingPlayer=null,manualPool=[];
-function toggleManualMode(){manualMode=!manualMode;var btn=document.getElementById('manual-mode-btn');if(btn){btn.classList.toggle('active',manualMode);btn.textContent=manualMode?'\u270f\ufe0f Manual: ON':'\u270f\ufe0f Manual Mode';}if(!manualMode)movingPlayer=null;var pw=document.getElementById('player-pool-wrap');if(pw)pw.style.display=manualMode?'block':'none';renderTeams(currentTeams);renderPool();refreshMoveBar();}
-function sendToPool(n,tid,isSub){if(!organizerUnlocked||!manualMode)return;if(movingPlayer&&movingPlayer.name===n){cancelMove();return;}var src=currentTeams.find(function(t){return t.id===tid;});if(src){if(isSub)src.sub=null;else src.players=src.players.filter(function(p){return p!==n;});}if(!manualPool.includes(n))manualPool.push(n);movingPlayer=null;renderTeams(currentTeams);renderPool();refreshMoveBar();}
-function selectFromPool(n){if(!organizerUnlocked||!manualMode)return;if(movingPlayer&&movingPlayer.name===n){cancelMove();return;}movingPlayer={name:n,fromTeamId:'pool',isSub:false};renderPool();renderTeams(currentTeams);refreshMoveBar();}
-function dropOnTeam(tid){if(!movingPlayer||!organizerUnlocked||!manualMode)return;var n=movingPlayer.name,fr=movingPlayer.fromTeamId,is=movingPlayer.isSub;if(fr==='pool'){manualPool=manualPool.filter(function(p){return p!==n;});}else{var src=currentTeams.find(function(t){return t.id===fr;});if(src){if(is)src.sub=null;else src.players=src.players.filter(function(p){return p!==n;});}}var tgt=currentTeams.find(function(t){return t.id===tid;});if(tgt)tgt.players.push(n);movingPlayer=null;renderTeams(currentTeams);renderPool();refreshMoveBar();}
-function cancelMove(){movingPlayer=null;renderTeams(currentTeams);renderPool();refreshMoveBar();}
-function refreshMoveBar(){var b=document.getElementById('move-bar'),l=document.getElementById('moving-name-lbl');if(!b)return;if(movingPlayer){b.classList.add('active');if(l)l.textContent=movingPlayer.name;}else b.classList.remove('active');}
-function renderPool(){var ch=document.getElementById('pool-chips'),ba=document.getElementById('pool-count-badge');if(!ch)return;if(ba)ba.textContent=manualPool.length;if(!manualPool.length){ch.innerHTML='<span style="color:var(--muted);font-size:12px;font-family:DM Mono,monospace">All players assigned</span>';return;}ch.innerHTML=manualPool.map(function(p){var s=movingPlayer&&movingPlayer.name===p;return '<span class="pool-chip'+(s?' chip-selected':'')+'" onclick="selectFromPool(this.dataset.n)" data-n="'+p.replace(/"/g,'&quot;')+'">'+p+'</span>';}).join('');}
-var jerseyNumbers={};
-var _jEditTarget=null;
-function _initJerseys(d){jerseyNumbers=Object.assign({},d);try{var s=localStorage.getItem(STORAGE_KEY+'_jerseys');if(s)Object.assign(jerseyNumbers,JSON.parse(s));}catch(e){}}
-function _saveJerseys(){try{localStorage.setItem(STORAGE_KEY+'_jerseys',JSON.stringify(jerseyNumbers));}catch(e){}}
-function _jBg(nm,ab,i){if(ab)return'#2a2a2a';if(jerseyNumbers[nm]!==undefined)return'#111';return COLORS[i%COLORS.length];}
-function _jColor(nm,ab){return(ab)?'#666':'#fff';}
-function _jVal(nm,ini){return jerseyNumbers[nm]!==undefined?jerseyNumbers[nm]:ini;}
-function _jFs(nm){var n=jerseyNumbers[nm];if(n===undefined)return'10px';return String(n).length>1?'11px':'13px';}
-function _jTag(nm){var n=jerseyNumbers[nm];return n!==undefined?'<span style="flex-shrink:0;font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:var(--gold);opacity:.85">#'+n+'</span>':'';}
-function openJerseyEdit(nm){if(!organizerUnlocked)return;_jEditTarget=nm;document.getElementById('jersey-modal-name').textContent=nm;var inp=document.getElementById('jersey-modal-input');inp.value=jerseyNumbers[nm]!==undefined?jerseyNumbers[nm]:'';document.getElementById('jersey-modal').style.display='flex';setTimeout(function(){inp.select();inp.focus();},80);}
-function confirmJerseyEdit(){var v=document.getElementById('jersey-modal-input').value.trim(),n=parseInt(v,10);if(v!==''&&!isNaN(n)&&n>=0&&n<=99){jerseyNumbers[_jEditTarget]=n;_saveJerseys();}closeJerseyModal();renderChecklist();renderTeams(currentTeams);}
-function clearJerseyEdit(){delete jerseyNumbers[_jEditTarget];_saveJerseys();closeJerseyModal();renderChecklist();renderTeams(currentTeams);}
-function closeJerseyModal(){document.getElementById('jersey-modal').style.display='none';_jEditTarget=null;}
+var manualMode=false, movingPlayer=null, manualPool=[];
 
-loadPersistedState();
-_initJerseys(JERSEY_DEFAULTS);   // ← restore tournaments, absentByDate, leaderboard
+// Helper: encode player name for data attribute
+function _dnm(s){ return s.replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+
+// Helper: jersey number tag
+function _jTag(nm){
+  var n=jerseyNumbers[nm];
+  return n!==undefined ? '<span style="flex-shrink:0;font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:var(--gold);opacity:.85">#'+n+'</span>' : '';
+}
+
+// Helper: build a player row (called from renderTeams template)
+function _pr(p, tid, isSub){
+  var jt = _jTag(p);
+  var dot = '<div class="player-dot'+(isSub?' sub':'')+'"></div>';
+  var sub = isSub ? '<div class="tag-sub">Rot.</div>' : '';
+  if(organizerUnlocked && manualMode){
+    return '<div class="player-row clickable" data-nm="'+_dnm(p)+'" data-tid="'+tid+'" data-sub="'+(isSub?1:0)+'" onclick="event.stopPropagation();_prClick(this)">'+dot+'<div style="flex:1">'+p+'</div>'+jt+sub+'<span class="rm-hint">\u2192 pool</span></div>';
+  }
+  return '<div class="player-row">'+dot+'<div style="flex:1">'+p+'</div>'+jt+sub+'</div>';
+}
+
+function _prClick(el){
+  sendToPool(el.getAttribute('data-nm'), parseInt(el.getAttribute('data-tid')), el.getAttribute('data-sub')==='1');
+}
+
+function toggleManualMode(){
+  manualMode=!manualMode;
+  var btn=document.getElementById('manual-mode-btn');
+  if(btn){btn.classList.toggle('active',manualMode); btn.textContent=manualMode?'\u270f\ufe0f Manual: ON':'\u270f\ufe0f Manual Mode';}
+  if(!manualMode) movingPlayer=null;
+  var pw=document.getElementById('player-pool-wrap');
+  if(pw) pw.style.display=manualMode?'block':'none';
+  renderTeams(currentTeams); renderPool(); _refreshBar();
+}
+function sendToPool(nm,tid,isSub){
+  if(!organizerUnlocked||!manualMode) return;
+  if(movingPlayer&&movingPlayer.name===nm){cancelMove();return;}
+  var src=currentTeams.find(function(t){return t.id===tid;});
+  if(src){if(isSub)src.sub=null; else src.players=src.players.filter(function(p){return p!==nm;});}
+  if(!manualPool.includes(nm)) manualPool.push(nm);
+  movingPlayer=null; renderTeams(currentTeams); renderPool(); _refreshBar();
+}
+function selectFromPool(nm){
+  if(!organizerUnlocked||!manualMode) return;
+  if(movingPlayer&&movingPlayer.name===nm){cancelMove();return;}
+  movingPlayer={name:nm,fromTeamId:'pool',isSub:false};
+  renderPool(); renderTeams(currentTeams); _refreshBar();
+}
+function dropOnTeam(tid){
+  if(!movingPlayer||!organizerUnlocked||!manualMode) return;
+  var nm=movingPlayer.name, fr=movingPlayer.fromTeamId, is=movingPlayer.isSub;
+  if(fr==='pool'){ manualPool=manualPool.filter(function(p){return p!==nm;}); }
+  else{
+    var src=currentTeams.find(function(t){return t.id===fr;});
+    if(src){if(is)src.sub=null; else src.players=src.players.filter(function(p){return p!==nm;});}
+  }
+  var tgt=currentTeams.find(function(t){return t.id===tid;});
+  if(tgt) tgt.players.push(nm);
+  movingPlayer=null; renderTeams(currentTeams); renderPool(); _refreshBar();
+}
+function cancelMove(){ movingPlayer=null; renderTeams(currentTeams); renderPool(); _refreshBar(); }
+function _refreshBar(){
+  var b=document.getElementById('move-bar'), l=document.getElementById('moving-name-lbl');
+  if(!b) return;
+  if(movingPlayer){ b.classList.add('active'); if(l) l.textContent=movingPlayer.name; }
+  else b.classList.remove('active');
+}
+function renderPool(){
+  var ch=document.getElementById('pool-chips'), ba=document.getElementById('pool-count-badge');
+  if(!ch) return;
+  if(ba) ba.textContent=manualPool.length;
+  if(!manualPool.length){
+    ch.innerHTML='<span style="color:var(--muted);font-size:12px;font-family:DM Mono,monospace">All players assigned</span>';
+    return;
+  }
+  ch.innerHTML=manualPool.map(function(p){
+    var sel=movingPlayer&&movingPlayer.name===p;
+    return '<span class="pool-chip'+(sel?' chip-selected':'')+'" data-nm="'+_dnm(p)+'" onclick="selectFromPool(this.getAttribute(\'data-nm\'))">'+p+'</span>';
+  }).join('');
+}
+
+// Jersey numbers
+var jerseyNumbers={}, _jEditTarget=null;
+function _initJerseys(d){
+  jerseyNumbers=Object.assign({},d);
+  try{var s=localStorage.getItem(STORAGE_KEY+'_jerseys'); if(s) Object.assign(jerseyNumbers,JSON.parse(s));}catch(e){}
+}
+function _saveJerseys(){ try{localStorage.setItem(STORAGE_KEY+'_jerseys',JSON.stringify(jerseyNumbers));}catch(e){} }
+function _jBg(nm,ab,i){ if(ab) return '#2a2a2a'; if(jerseyNumbers[nm]!==undefined) return '#111'; return COLORS[i%COLORS.length]; }
+function _jColor(nm,ab){ return (ab)?'#666':'#fff'; }
+function _jVal(nm,ini){ return jerseyNumbers[nm]!==undefined ? jerseyNumbers[nm] : ini; }
+function _jFs(nm){ var n=jerseyNumbers[nm]; if(n===undefined) return '10px'; return String(n).length>1?'11px':'13px'; }
+function openJerseyEdit(nm){
+  if(!organizerUnlocked) return;
+  _jEditTarget=nm;
+  document.getElementById('jersey-modal-name').textContent=nm;
+  var inp=document.getElementById('jersey-modal-input');
+  inp.value=jerseyNumbers[nm]!==undefined?jerseyNumbers[nm]:'';
+  document.getElementById('jersey-modal').style.display='flex';
+  setTimeout(function(){inp.select();inp.focus();},80);
+}
+function confirmJerseyEdit(){
+  var v=document.getElementById('jersey-modal-input').value.trim(), n=parseInt(v,10);
+  if(v!==''&&!isNaN(n)&&n>=0&&n<=99){jerseyNumbers[_jEditTarget]=n; _saveJerseys();}
+  closeJerseyModal(); renderChecklist(); renderTeams(currentTeams);
+}
+function clearJerseyEdit(){ delete jerseyNumbers[_jEditTarget]; _saveJerseys(); closeJerseyModal(); renderChecklist(); renderTeams(currentTeams); }
+function closeJerseyModal(){ document.getElementById('jersey-modal').style.display='none'; _jEditTarget=null; }
+
+loadPersistedState();   // ← restore tournaments, absentByDate, leaderboard
+_initJerseys(JERSEY_DEFAULTS);
 renderChecklist();
 rejiggerTeams();
 updateTournamentManagerUI();
 renderLeaderboard();
 </script>
-
 <div id="jersey-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:4000;align-items:center;justify-content:center;padding:20px;">
   <div style="background:#162030;border:1px solid rgba(245,166,35,.35);border-radius:14px;padding:28px 24px;max-width:280px;width:100%;text-align:center;">
     <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:var(--gold);margin-bottom:4px">Jersey #</div>
