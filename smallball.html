@@ -942,6 +942,7 @@ function saveTournamentState() {
   t.numRounds = numRounds;
   absentByDate[activeTournamentDate] = [...absentSet];
   persistState();
+  _quickSave();
 }
 
 function getTournamentStatus(date) {
@@ -1219,6 +1220,7 @@ function submitScore(round, courtIdx, teamAId, teamBId) {
   if (sA>sB) { records[teamAId].w++; records[teamBId].l++; }
   else       { records[teamBId].w++; records[teamAId].l++; }
   saveTournamentState();
+  _quickSave();
   renderTeams(currentTeams);
   renderRoundPanel(round);
   checkAndBuildNextRound(round);
@@ -1584,6 +1586,7 @@ function renderSchedule(teams) {
 // ═══════════════════════════════════════════════════════════════════════════
 function rejiggerTeams() {
   manualPool=[];movingPlayer=null;
+  _clearLiveState();
   const available = ALL_PLAYERS.filter(p=>!absentSet.has(playerFullName(p)));
   const teams = buildTeams(available);
   initRecords(teams);
@@ -2142,14 +2145,68 @@ function _buildRoundPanels(container) {
   container.innerHTML=h;
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LIVE STATE PERSISTENCE — scores/matchups survive all page visits
+// ═══════════════════════════════════════════════════════════════════════════
+function _quickSave() {
+  if (!currentTeams || !currentTeams.length) return;
+  try {
+    localStorage.setItem(STORAGE_KEY+'_live', JSON.stringify({
+      v:2, teams:currentTeams, scores:scores, matchups:matchups,
+      records:records, byeTeams:byeTeams, numRounds:numRounds, gameFormat:gameFormat
+    }));
+  } catch(e) {}
+}
+
+function _quickRestore() {
+  try {
+    var raw=localStorage.getItem(STORAGE_KEY+'_live');
+    if (!raw) return false;
+    var d=JSON.parse(raw);
+    if (!d||!d.teams||!d.teams.length) return false;
+    currentTeams=d.teams;
+    scores=d.scores||{};
+    matchups=d.matchups||{};
+    records=d.records||{};
+    byeTeams=d.byeTeams||{};
+    if (d.numRounds) numRounds=d.numRounds;
+    if (d.gameFormat) gameFormat=d.gameFormat;
+    return true;
+  } catch(e) { return false; }
+}
+
+function _clearLiveState() {
+  try { localStorage.removeItem(STORAGE_KEY+'_live'); } catch(e) {}
+}
+
 loadPersistedState();   // ← restore tournaments, absentByDate, leaderboard
 _initJerseys(JERSEY_DEFAULTS);
+// Restore numRounds from saved tournament if available
+if (activeTournamentDate && tournaments[activeTournamentDate] && tournaments[activeTournamentDate].numRounds) {
+  numRounds = tournaments[activeTournamentDate].numRounds;
+}
+_initRoundState();
+_renderTabs();
 document.getElementById("stat-players").textContent = ALL_PLAYERS.length;
 // hero image display removed from header
 renderChecklist();
-rejiggerTeams();
-updateTournamentManagerUI();
-renderLeaderboard();
+  // ── RESTORE SAVED STATE (do NOT wipe scores on every page load) ────────
+if (activeTournamentDate && tournaments[activeTournamentDate] &&
+    tournaments[activeTournamentDate].teams &&
+    tournaments[activeTournamentDate].teams.length) {
+  loadAndActivateTournament(activeTournamentDate);
+} else if (_quickRestore()) {
+  _renderTabs();
+  renderTeams(currentTeams);
+  renderScheduleFromState({teams:currentTeams,scores:scores,matchups:matchups,records:records,byeTeams:byeTeams});
+  updateTournamentManagerUI();
+  renderLeaderboard();
+} else {
+  rejiggerTeams();
+  updateTournamentManagerUI();
+  renderLeaderboard();
+}
 
 </script>
 <div id="jersey-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:4000;align-items:center;justify-content:center;padding:20px;">
