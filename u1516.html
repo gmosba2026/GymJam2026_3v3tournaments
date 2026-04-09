@@ -680,6 +680,31 @@ const ALL_PLAYERS = [
   "Qinghai Yang"
 ];
 
+const JERSEY_NUMBERS = {
+  "Alexander Adaralegbe": 40,
+  "Micah Behmann": 4,
+  "Quinn Campbell": 3,
+  "Jeremie Chenier Paquet": 17,
+  "Brayden Cox": 23,
+  "Aidan Gaffney": 1,
+  "Liam Gu": 13,
+  "Daniel Marshall": 6,
+  "Rylen Phantharangsy": 22,
+  "Charlie Poushinsky-Young": 43,
+  "Zeph Rao": 11,
+  "Max Rosher": 9,
+  "Vincent Roy": 10,
+  "Rashed Salman": 42,
+  "Adam Schroeter": 7,
+  "Silas Tustin-Graham": 8,
+  "Qinghai Yang": 12
+};
+function _jerseyTag(name) {
+  const n = JERSEY_NUMBERS[name];
+  if (n === undefined) return '';
+  return '<span style="margin-left:auto;font-family:DM Mono,monospace;font-size:11px;font-weight:700;color:var(--gold);opacity:0.85;letter-spacing:0;flex-shrink:0">#' + n + '</span>';
+}
+
 const COLORS = [
   "#6c63ff","#e63946","#06d6a0","#f5a623","#4cc9f0","#ff6b6b","#a29bfe",
   "#fd79a8","#00b894","#fdcb6e","#e17055","#74b9ff","#55efc4","#fab1a0",
@@ -981,8 +1006,8 @@ function renderChecklist() {
   el.innerHTML = ALL_PLAYERS.map((p,i) => {
     const absent = absentSet.has(p);
     return `<div class="player-check-item ${absent?'absent':''}">
-      <div class="pci-avatar" style="background:${absent?'#333':COLORS[i%COLORS.length]}">${initials(p)}</div>
-      <div class="pci-name">${p}${absent?'<span class="pci-removed-badge">removed</span>':''}</div>
+      <div class="pci-avatar" style="background:${absent?'#333':COLORS[i%COLORS.length]};font-size:${JERSEY_NUMBERS[p]!==undefined?(JERSEY_NUMBERS[p]>9?'11px':'13px'):'10px'};font-weight:700">${JERSEY_NUMBERS[p]!==undefined ? JERSEY_NUMBERS[p] : initials(p)}</div>
+      <div class="pci-name">${p}${JERSEY_NUMBERS[p]!==undefined ? '<span style="margin-left:5px;font-family:DM Mono,monospace;font-size:10px;color:var(--gold);opacity:0.75;letter-spacing:0">#'+JERSEY_NUMBERS[p]+'</span>':''} ${absent?'<span class="pci-removed-badge">removed</span>':''}</div>
       <button class="pci-toggle ${absent?'restore':'remove'}" onclick="togglePlayer(${i})">${absent?'Restore':'Remove'}</button>
     </div>`;
   }).join('');
@@ -1032,10 +1057,10 @@ function renderTeams(teams) {
         return `<div class="player-row clickable ${isMov?'is-moving':''}"
           onclick="event.stopPropagation();sendToPool('${_esc(p)}',${t.id},false)"
           title="Click to move to pool">
-          <div class="player-dot"></div><div>${p}</div>
+          <div class="player-dot"></div><div style="flex:1">${p}</div>${_jerseyTag(p)}
           <span class="rm-hint">→ pool</span></div>`;
       }
-      return `<div class="player-row"><div class="player-dot"></div><div>${p}</div></div>`;
+      return `<div class="player-row"><div class="player-dot"></div><div style="flex:1">${p}</div>${_jerseyTag(p)}</div>`;
     }).join('');
     const subRow = t.sub ? (() => {
       const isMov = _canEdit && movingPlayer && movingPlayer.name === t.sub;
@@ -1043,11 +1068,11 @@ function renderTeams(teams) {
         return `<div class="player-row clickable ${isMov?'is-moving':''}"
           onclick="event.stopPropagation();sendToPool('${_esc(t.sub)}',${t.id},true)"
           title="Click to move to pool">
-          <div class="player-dot sub"></div><div>${t.sub}</div>
+          <div class="player-dot sub"></div><div style="flex:1">${t.sub}</div>${_jerseyTag(t.sub)}
           <div class="tag-sub">Rot.</div>
           <span class="rm-hint">→ pool</span></div>`;
       }
-      return `<div class="player-row"><div class="player-dot sub"></div><div>${t.sub}</div><div class="tag-sub">Rot.</div></div>`;
+      return `<div class="player-row"><div class="player-dot sub"></div><div style="flex:1">${t.sub}</div>${_jerseyTag(t.sub)}<div class="tag-sub">Rot.</div></div>`;
     })() : '';
     return `<div class="team-card ${t.players.length<(gameFormat===FORMAT.FOUR?4:3)?'short-handed':''} ${droppable?'droppable':''}" ${teamAttrs}>
       <div class="team-num">${t.id}</div>
