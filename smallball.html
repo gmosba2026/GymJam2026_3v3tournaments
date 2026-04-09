@@ -540,30 +540,6 @@
   }
   .print-roster-btn:hover { background:rgba(76,201,240,.18); }
 
-  /* === PRINT STYLES === */
-  @media print {
-    body * { visibility:hidden !important; }
-    #print-roster-area, #print-roster-area * { visibility:visible !important; }
-    #print-roster-area {
-      position:fixed; inset:0; padding:24px 32px;
-      background:#fff; color:#000; font-family:Arial,sans-serif;
-    }
-    .print-header { margin-bottom:16px; border-bottom:2px solid #000; padding-bottom:10px; }
-    .print-title { font-size:20px; font-weight:700; letter-spacing:1px; }
-    .print-sub { font-size:11px; color:#555; margin-top:4px; }
-    .print-team-block { margin-bottom:22px; page-break-inside:avoid; }
-    .print-team-name { font-size:14px; font-weight:700; margin-bottom:6px;
-      border-bottom:1px solid #ccc; padding-bottom:4px; }
-    .print-table { width:100%; border-collapse:collapse; font-size:12px; }
-    .print-table th {
-      background:#eee; font-weight:700; text-align:left;
-      padding:5px 10px; border:1px solid #ccc; font-size:11px;
-      text-transform:uppercase; letter-spacing:.5px;
-    }
-    .print-table td { padding:5px 10px; border:1px solid #ccc; }
-    .print-table tr:nth-child(even) td { background:#f9f9f9; }
-    .no-print { display:none !important; }
-  }
 
 </style>
 </head>
@@ -2410,56 +2386,135 @@ toggleManualMode = function() {
   }
 };
 
-// ── PRINT ROSTER ─────────────────────────────────────────────────────────────
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PRINT SYSTEM — opens new window (reliable cross-browser)
+// ═══════════════════════════════════════════════════════════════════════════
 function printRoster() {
-  var teams = currentTeams;
-  if (!teams || !teams.length) { showToast('No roster to print'); return; }
+  document.getElementById('print-menu-modal').style.display = 'flex';
+}
 
-  // Get program name from page title
-  var titleEl = document.querySelector('h1');
-  var programName = titleEl ? titleEl.innerText.replace(/\n/g,' ').trim() : document.title;
-  var dateStr = new Date().toLocaleDateString('en-CA', {
-    weekday:'long', year:'numeric', month:'long', day:'numeric'
-  });
+function _pName(p) {
+  if (!p) return {first:'', last:'', full:''};
+  if (typeof p === 'object') {
+    return {first: p.first||'', last: p.last||'', full: (p.first+' '+p.last).trim()};
+  }
+  var parts = p.trim().split(/\s+/);
+  var last  = parts.length > 1 ? parts[parts.length-1] : '';
+  var first = parts.length > 1 ? parts.slice(0,-1).join(' ') : parts[0]||'';
+  return {first:first, last:last, full:p.trim()};
+}
 
-  var html = '<div class="print-header">' +
-    '<div class="print-title">' + programName + '</div>' +
-    '<div class="print-sub">Roster · ' + dateStr + '</div>' +
-  '</div>';
+function _buildRosterHTML(teams, programName, dateStr) {
+  var html = '<h1 style="font-size:20px;margin:0 0 4px;font-family:Arial,sans-serif">' + programName + '</h1>';
+  html += '<p style="font-size:12px;color:#555;margin:0 0 20px;font-family:Arial,sans-serif">Rosters &bull; ' + dateStr + '</p>';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;">';
 
   teams.forEach(function(t) {
-    // Apply current sort to print output
     var players = _sortedPlayers(t.players);
-    if (t.sub) players = players.concat([t.sub]);
+    html += '<div style="border:1px solid #ccc;border-radius:6px;overflow:hidden;page-break-inside:avoid;">';
+    html += '<div style="background:#1a1a2e;color:#f5a623;font-family:Arial,sans-serif;font-size:13px;font-weight:700;padding:8px 12px;letter-spacing:1px;">' + t.name + '</div>';
+    html += '<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:12px;">';
+    html += '<thead><tr style="background:#f0f0f0;">';
+    html += '<th style="padding:6px 10px;text-align:left;border-bottom:1px solid #ccc;width:36px">#</th>';
+    html += '<th style="padding:6px 10px;text-align:left;border-bottom:1px solid #ccc;">First</th>';
+    html += '<th style="padding:6px 10px;text-align:left;border-bottom:1px solid #ccc;">Last</th>';
+    html += '</tr></thead><tbody>';
 
-    html += '<div class="print-team-block">' +
-      '<div class="print-team-name">' + t.name + '</div>' +
-      '<table class="print-table"><thead><tr>' +
-        '<th>#</th><th>First Name</th><th>Last Name</th>' +
-        (t.sub ? '<th>Role</th>' : '') +
-      '</tr></thead><tbody>';
-
-    players.forEach(function(p) {
-      var isSub = (p === t.sub);
-      var _pn = (p && typeof p === 'object') ? playerFullName(p) : (p || '');
-      var _ln = (p && typeof p === 'object') ? (p.last||'') : (_pn.trim().split(/\s+/).pop()||'');
-      var _fn = (p && typeof p === 'object') ? (p.first||'') : (_pn.trim().split(/\s+/).slice(0,-1).join(' '));
-      var lastName = _ln, firstName = _fn;
-      var num = _jerseyNum(p);
-      html += '<tr>' +
-        '<td>' + (num !== null ? num : '') + '</td>' +
-        '<td>' + firstName + '</td>' +
-        '<td>' + lastName + '</td>' +
-        (t.sub ? '<td>' + (isSub ? 'Rotating Sub' : '') + '</td>' : '') +
-      '</tr>';
+    players.forEach(function(p, i) {
+      var pn  = _pName(p);
+      var key = (typeof p === 'object') ? playerFullName(p) : p;
+      var num = jerseyNumbers[key];
+      var bg  = i % 2 === 0 ? '#fff' : '#f9f9f9';
+      html += '<tr style="background:' + bg + ';">';
+      html += '<td style="padding:5px 10px;border-bottom:1px solid #eee;color:#888;font-weight:700;">' + (num !== undefined ? num : '') + '</td>';
+      html += '<td style="padding:5px 10px;border-bottom:1px solid #eee;">' + pn.first + '</td>';
+      html += '<td style="padding:5px 10px;border-bottom:1px solid #eee;">' + pn.last + '</td>';
+      html += '</tr>';
     });
-
+    if (t.sub) {
+      var spn = _pName(t.sub);
+      var skey = (typeof t.sub === 'object') ? playerFullName(t.sub) : t.sub;
+      var snum = jerseyNumbers[skey];
+      html += '<tr style="background:#fff8e1;">';
+      html += '<td style="padding:5px 10px;border-bottom:1px solid #eee;color:#888;font-weight:700;">' + (snum !== undefined ? snum : '') + '</td>';
+      html += '<td style="padding:5px 10px;border-bottom:1px solid #eee;">' + spn.first + '</td>';
+      html += '<td style="padding:5px 10px;border-bottom:1px solid #eee;">' + spn.last + ' <span style="font-size:10px;color:#999">(rot.)</span></td>';
+      html += '</tr>';
+    }
     html += '</tbody></table></div>';
   });
+  html += '</div>';
+  return html;
+}
 
-  var area = document.getElementById('print-roster-area');
-  if (area) { area.innerHTML = html; area.style.display = 'none'; }
-  window.print();
+function _buildScheduleHTML(teams, programName, dateStr) {
+  var ms = matchups[1];
+  var html = '<h1 style="font-size:20px;margin:0 0 4px;font-family:Arial,sans-serif">' + programName + '</h1>';
+  html += '<p style="font-size:12px;color:#555;margin:0 0 20px;font-family:Arial,sans-serif">Round 1 Schedule &bull; ' + dateStr + '</p>';
+
+  if (!ms || !ms.length) {
+    html += '<p style="color:#999;font-family:Arial,sans-serif;font-size:13px">No Round 1 matchups generated yet.</p>';
+    return html;
+  }
+
+  html += '<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:13px;">';
+  html += '<thead><tr style="background:#1a1a2e;color:#f5a623;">';
+  html += '<th style="padding:10px 14px;text-align:left;font-size:11px;letter-spacing:1px;text-transform:uppercase;">Court</th>';
+  html += '<th style="padding:10px 14px;text-align:left;font-size:11px;letter-spacing:1px;text-transform:uppercase;">Home</th>';
+  html += '<th style="padding:10px 14px;text-align:center;font-size:11px;letter-spacing:1px;">VS</th>';
+  html += '<th style="padding:10px 14px;text-align:left;font-size:11px;letter-spacing:1px;text-transform:uppercase;">Away</th>';
+  html += '<th style="padding:10px 14px;text-align:left;font-size:11px;letter-spacing:1px;text-transform:uppercase;">Players</th>';
+  html += '</tr></thead><tbody>';
+
+  ms.forEach(function(m, i) {
+    var bg = i % 2 === 0 ? '#fff' : '#f9f9f9';
+    var aPlayers = m.teamA.players.map(function(p){ return _pName(p).last; }).join(', ');
+    var bPlayers = m.teamB.players.map(function(p){ return _pName(p).last; }).join(', ');
+    if (m.teamA.sub) aPlayers += ' (+' + _pName(m.teamA.sub).last + ')';
+    if (m.teamB.sub) bPlayers += ' (+' + _pName(m.teamB.sub).last + ')';
+    html += '<tr style="background:' + bg + ';border-bottom:1px solid #e0e0e0;">';
+    html += '<td style="padding:10px 14px;font-weight:700;color:#1a1a2e;">Court ' + (i+1) + '</td>';
+    html += '<td style="padding:10px 14px;font-weight:600;">' + m.teamA.name + '</td>';
+    html += '<td style="padding:10px 14px;text-align:center;color:#999;font-weight:700;">vs</td>';
+    html += '<td style="padding:10px 14px;font-weight:600;">' + m.teamB.name + '</td>';
+    html += '<td style="padding:10px 14px;font-size:11px;color:#666;">';
+    html += '<span style="display:block">' + m.teamA.name + ': ' + aPlayers + '</span>';
+    html += '<span style="display:block">' + m.teamB.name + ': ' + bPlayers + '</span>';
+    html += '</td></tr>';
+  });
+  html += '</tbody></table>';
+
+  if (byeTeams[1]) {
+    var bn = _pName(byeTeams[1]).full || byeTeams[1].name;
+    html += '<p style="margin-top:14px;font-family:Arial,sans-serif;font-size:12px;color:#666;">BYE (free win this round): <strong>' + byeTeams[1].name + '</strong></p>';
+  }
+  return html;
+}
+
+function doPrint(mode) {
+  document.getElementById('print-menu-modal').style.display = 'none';
+  var teams = currentTeams;
+  if (!teams || !teams.length) { showToast('No roster to print'); return; }
+  var titleEl = document.querySelector('h1');
+  var programName = titleEl ? titleEl.innerText.replace(/\n/g,' ').replace(/\s+/g,' ').trim() : document.title;
+  var dateStr = new Date().toLocaleDateString('en-CA', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  var body = '';
+  if (mode === 'roster' || mode === 'both') body += _buildRosterHTML(teams, programName, dateStr);
+  if (mode === 'schedule' || mode === 'both') {
+    if (mode === 'both') body += '<hr style="margin:30px 0;border:none;border-top:2px solid #ccc">';
+    body += _buildScheduleHTML(teams, programName, dateStr);
+  }
+  var pw = window.open('', '_blank', 'width=900,height=700');
+  if (!pw) { showToast('Pop-up blocked - please allow pop-ups and try again'); return; }
+  pw.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Print</title>'
+    + '<style>body{margin:24px 32px;font-family:Arial,sans-serif;color:#000;background:#fff}'
+    + '@media print{body{margin:16px}}</style></head><body>'
+    + body + '
+</body></html>');
+  pw.document.close();
+  setTimeout(function(){ pw.print(); }, 400);
 }
 
 loadPersistedState();   // ← restore tournaments, absentByDate, leaderboard
@@ -2498,6 +2553,19 @@ if (_quickRestore()) {
 }
 
 </script>
+<!-- PRINT MENU MODAL -->
+<div id="print-menu-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:6000;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#162030;border:1px solid rgba(245,166,35,.35);border-radius:14px;padding:28px 24px;max-width:340px;width:100%;text-align:center;">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:var(--gold);margin-bottom:6px">&#x1F5A8; Print</div>
+    <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-bottom:22px">Choose what to print</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+      <button onclick="doPrint('roster')" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:12px 18px;border-radius:6px;cursor:pointer;background:rgba(245,166,35,.15);color:var(--gold);border:1px solid rgba(245,166,35,.4);text-align:left">&#x1F4CB; Team Rosters<br><span style="font-size:10px;opacity:0.7;text-transform:none;letter-spacing:0">All teams with jersey numbers and player names</span></button>
+      <button onclick="doPrint('schedule')" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:12px 18px;border-radius:6px;cursor:pointer;background:rgba(76,201,240,.1);color:var(--blue);border:1px solid rgba(76,201,240,.3);text-align:left">&#x1F3C0; Round 1 Schedule<br><span style="font-size:10px;opacity:0.7;text-transform:none;letter-spacing:0">Court assignments and matchups for Round 1</span></button>
+      <button onclick="doPrint('both')" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:12px 18px;border-radius:6px;cursor:pointer;background:rgba(6,214,160,.1);color:var(--green);border:1px solid rgba(6,214,160,.3);text-align:left">&#x1F4C4; Both &mdash; Rosters + Round 1<br><span style="font-size:10px;opacity:0.7;text-transform:none;letter-spacing:0">Full print package in one document</span></button>
+    </div>
+    <button onclick="document.getElementById('print-menu-modal').style.display='none'" style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:1px;text-transform:uppercase;padding:9px 18px;border-radius:6px;cursor:pointer;background:transparent;color:var(--muted);border:1px solid var(--border-soft)">Cancel</button>
+  </div>
+</div>
 <div id="jersey-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:4000;align-items:center;justify-content:center;padding:20px;">
   <div style="background:#162030;border:1px solid rgba(245,166,35,.35);border-radius:14px;padding:28px 24px;max-width:280px;width:100%;text-align:center;">
     <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:3px;color:var(--gold);margin-bottom:4px">Jersey #</div>
@@ -2539,7 +2607,5 @@ if (_quickRestore()) {
   </div>
 </div>
 
-<!-- PRINT ROSTER AREA (hidden on screen, revealed in print) -->
-<div id="print-roster-area" style="display:none"></div>
 </body>
 </html>
