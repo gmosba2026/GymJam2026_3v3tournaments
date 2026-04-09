@@ -1684,6 +1684,7 @@ function submitPin() {
     updateTournamentManagerUI();
     renderLeaderboard();
     var _mb=document.getElementById('manual-mode-btn');if(_mb)_mb.style.display='inline-block';
+    for(var _r=1;_r<=4;_r++) renderRoundPanel(_r);
     showToast('Organizer mode unlocked');
   } else {
     document.getElementById('pin-error').textContent='Incorrect PIN';
@@ -1705,6 +1706,7 @@ function lockOrganizer() {
   manualMode=false;movingPlayer=null;manualPool=[];
   var _pw=document.getElementById('player-pool-wrap');if(_pw)_pw.style.display='none';
   var _mb2=document.getElementById('manual-mode-btn');if(_mb2){_mb2.style.display='none';_mb2.classList.remove('active');_mb2.textContent='✏️ Manual Mode';}
+  for(var _r2=1;_r2<=4;_r2++) renderRoundPanel(_r2);
   showToast('Organizer mode locked');
 }
 
