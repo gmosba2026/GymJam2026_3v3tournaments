@@ -981,17 +981,22 @@ function buildTeams(playerObjs) {
   const shuffled = shuffle(players);
   const n = shuffled.length;
 
+  // ── SCRIMMAGE: always exactly 2 teams ─────────────────────────────────
   if (gameFormat === FORMAT.SCRIMMAGE) {
-    const half = Math.ceil(n/2);
+    if (n < 2) return [];
+    const half  = Math.floor(n / 2);            // even split
+    const extra = shuffled.slice(half * 2);     // odd player out → sub
     return [
-      {id:1,name:'Team A',players:shuffled.slice(0,half),sub:null},
-      {id:2,name:'Team B',players:shuffled.slice(half),sub:null}
+      {id:1,name:'Team A',players:shuffled.slice(0,half),    sub:extra[0]||null},
+      {id:2,name:'Team B',players:shuffled.slice(half,half*2),sub:null}
     ];
   }
 
-  // For 2v2 and scrimmage use simple split
+  // ── 2v2: enforce even team count ───────────────────────────────────────
   if (gameFormat === FORMAT.TWO) {
-    const numTeams = Math.min(8, Math.floor(n / 2));
+    const maxT    = Math.floor(n / 2);
+    const evenT   = maxT % 2 === 0 ? maxT : maxT - 1;   // round down to even
+    const numTeams = Math.min(8, evenT);
     if (numTeams < 2) return [];
     const remainder = n - (numTeams * 2);
     const teams = Array.from({length:numTeams}, (_,i) => ({id:i+1,name:`Team ${i+1}`,players:[],sub:null}));

@@ -607,7 +607,7 @@ const ALL_PLAYERS = [
   "Alexander Adaralegbe","Micah Behmann","Jackson Bolan","Noah Bown",
   "Quinn Campbell","Jeremie Chenier Paquet","Brayden Cox","Jack Dunne",
   "Santiago Escalante","Aidan Gaffney","Liam Gu","Aiden Lee",
-  "Daniel Marshall","Liam Merrick","Rylen Phantharangsy","Kairav Ralhan",
+  "Daniel Marshall","Liam Merrick","Rylen Phantharangsy","Charlie Poushinsky-Young","Kairav Ralhan",
   "Zeph Rao","Antoni Reitano","Max Rosher","Vincent Roy",
   "Rashed Salman","Adam Schroeter","Miles Spencer","Silas Tustin-Graham",
   "Qinghai Yang"
@@ -868,29 +868,41 @@ function buildTeams(players) {
   const shuffled = shuffle(players);
   const n = shuffled.length;
 
+  // ── SCRIMMAGE: always exactly 2 teams ──────────────────────────────────
   if (gameFormat === FORMAT.SCRIMMAGE) {
-    const half = Math.ceil(n/2);
+    if (n < 2) return [];
+    const half  = Math.floor(n / 2);            // even split
+    const extra = shuffled.slice(half * 2);     // odd player out
     return [
-      {id:1,name:'Team A',players:shuffled.slice(0,half),sub:null},
-      {id:2,name:'Team B',players:shuffled.slice(half),sub:null}
+      {id:1,name:'Team A',players:shuffled.slice(0,half),   sub:extra[0]||null},
+      {id:2,name:'Team B',players:shuffled.slice(half,half*2),sub:null}
     ];
   }
 
   const playersPerTeam = gameFormat === FORMAT.FOUR ? 4 : gameFormat === FORMAT.TWO ? 2 : 3;
-  const numTeams = Math.min(8, Math.floor(n / playersPerTeam));
+  const maxTeams = Math.floor(n / playersPerTeam);
+
+  // ── CORE RULE: even number of teams ONLY ───────────────────────────────
+  // If maxTeams is odd, reduce by 1 — never produce an odd team count
+  const evenTeams = maxTeams % 2 === 0 ? maxTeams : maxTeams - 1;
+  const numTeams  = Math.min(8, evenTeams);   // cap at 8 (already even)
   if (numTeams < 2) return [];
 
-  const remainder = n - (numTeams * playersPerTeam);
+  // Full teams only — no partial teams ever
+  const assignedCount = numTeams * playersPerTeam;
+  const remainder     = n - assignedCount;    // these become rotating subs
+
   const teams = Array.from({length:numTeams}, (_,i) => ({id:i+1,name:`Team ${i+1}`,players:[],sub:null}));
   let idx = 0;
   for (let t=0; t<numTeams; t++)
-    for (let p=0; p<playersPerTeam && idx<n; p++)
+    for (let p=0; p<playersPerTeam; p++)
       teams[t].players.push(shuffled[idx++]);
+  // Leftover players → rotating sub slots (one per team max)
   for (let t=0; t<remainder && idx<n; t++)
     teams[t].sub = shuffled[idx++];
 
   const assigned = teams.reduce((s,t) => s+t.players.length+(t.sub?1:0), 0);
-  console.log(`Format: ${gameFormat} | ${numTeams} teams | ${assigned}/${n} assigned`);
+  console.log(`[Teams] ${gameFormat} | ${numTeams} teams (even-only) | ${assigned}/${n} assigned`);
   return teams;
 }
 
