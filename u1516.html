@@ -992,7 +992,7 @@ function renderChecklist() {
   el.innerHTML = ALL_PLAYERS.map((p,i) => {
     const absent = absentSet.has(p);
     return `<div class="player-check-item ${absent?'absent':''}">
-      <div class="pci-avatar" style="${${_avatarStyle(p,absent,i)};font-size:${_avatarFontSize(p)};font-weight:700;${organizerUnlocked?'cursor:pointer;':''}" onclick="openJerseyEdit('${_esc(p)}')" title="Click to edit jersey #">${_avatarContent(p)}</div>
+      <div class="pci-avatar" style="${_avatarStyle(p,absent,i)};font-size:${_avatarFontSize(p)};font-weight:700;${organizerUnlocked?'cursor:pointer;':''}" onclick="openJerseyEdit('${_esc(p)}')" title="Click to edit jersey #">${_avatarContent(p)}</div>
       <div class="pci-name">${p}${absent?'<span class="pci-removed-badge">removed</span>':''}</div>
       <button class="pci-toggle ${absent?'restore':'remove'}" onclick="togglePlayer(${i})">${absent?'Restore':'Remove'}</button>
     </div>`;
