@@ -1055,8 +1055,9 @@ function togglePlayer(playerName) {
   absentByDate[dateKey] = [...absentSet];
   persistState();
   renderChecklist();
-  rejiggerTeams();
-  _fbPushAll(); // sync to Firebase
+  // Update team display to reflect absence (don't reshuffle teams)
+  if (currentTeams && currentTeams.length) renderTeams(currentTeams);
+  _fbPushAll(); // sync attendance to Firebase immediately
 }
 function restoreAll() {
   absentSet.clear();
@@ -2371,11 +2372,12 @@ function _fbApply(snapshot) {
   if (!d) return;
   // Skip our own echo
   if (d.writeId && d.writeId === _myWriteId) return;
-  // Organizer is source of truth on their device
-  if (organizerUnlocked) return;
+  // Apply attendance + jerseys on ALL devices (organizer sets these)
+  // Only skip teams/scores if organizer is active (they own those)
+  var _skipTeams = organizerUnlocked;
 
-  // Apply all state
-  if (d.teams && d.teams.length) {
+  // Apply teams/scores only if organizer not active here
+  if (!_skipTeams && d.teams && d.teams.length) {
     currentTeams = d.teams;
     scores       = d.scores    || {};
     matchups     = d.matchups  || {};
@@ -2402,9 +2404,9 @@ function _fbApply(snapshot) {
   // Re-render everything
   _renderTabs();
   renderChecklist();
-  if (d.teams && d.teams.length) renderTeams(currentTeams);
+  if (!_skipTeams && d.teams && d.teams.length) renderTeams(currentTeams);
   var _sc = document.getElementById('schedule-container');
-  if (_sc && d.teams && d.teams.length) {
+  if (!_skipTeams && _sc && d.teams && d.teams.length) {
     _buildRoundPanels(_sc);
     for (var _r=1;_r<=numRounds;_r++) renderRoundPanel(_r);
   }
@@ -2537,10 +2539,10 @@ _fbLoad(function(fbLoaded) {
   } else {
     _initRoundState(); rejiggerTeams(); updateTournamentManagerUI(); renderLeaderboard();
   }
-  // Start real-time listener for cross-device push updates
-  if (!organizerUnlocked) _fbStartListening();
+  // Start real-time listener — always active for cross-device sync
+  _fbStartListening();
   // Also start 10s fallback polling
-  if (!organizerUnlocked) _startRefreshPolling();
+  _startRefreshPolling();
 });
 // Start auto-refresh for non-organizer viewers
 if (!organizerUnlocked) _startRefreshPolling();

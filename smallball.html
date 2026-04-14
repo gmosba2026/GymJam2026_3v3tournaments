@@ -1198,7 +1198,8 @@ function togglePlayer(idx) {
   absentByDate[dateKey] = [...absentSet];
   persistState();
   renderChecklist();
-  _fbPushAll(); // sync to Firebase
+  if (currentTeams && currentTeams.length) renderTeams(currentTeams);
+  _fbPushAll(); // sync attendance to Firebase
 }
 function restoreAll() {
   absentSet.clear();
@@ -2694,11 +2695,12 @@ function _fbApply(snapshot) {
   if (!d) return;
   // Skip our own echo
   if (d.writeId && d.writeId === _myWriteId) return;
-  // Organizer is source of truth on their device
-  if (organizerUnlocked) return;
+  // Apply attendance + jerseys on ALL devices (organizer sets these)
+  // Only skip teams/scores if organizer is active (they own those)
+  var _skipTeams = organizerUnlocked;
 
-  // Apply all state
-  if (d.teams && d.teams.length) {
+  // Apply teams/scores only if organizer not active here
+  if (!_skipTeams && d.teams && d.teams.length) {
     currentTeams = d.teams;
     scores       = d.scores    || {};
     matchups     = d.matchups  || {};
@@ -2725,9 +2727,9 @@ function _fbApply(snapshot) {
   // Re-render everything
   _renderTabs();
   renderChecklist();
-  if (d.teams && d.teams.length) renderTeams(currentTeams);
+  if (!_skipTeams && d.teams && d.teams.length) renderTeams(currentTeams);
   var _sc = document.getElementById('schedule-container');
-  if (_sc && d.teams && d.teams.length) {
+  if (!_skipTeams && _sc && d.teams && d.teams.length) {
     _buildRoundPanels(_sc);
     for (var _r=1;_r<=numRounds;_r++) renderRoundPanel(_r);
   }
