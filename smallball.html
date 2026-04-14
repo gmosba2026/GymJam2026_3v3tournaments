@@ -1197,6 +1197,7 @@ function togglePlayer(idx) {
   absentByDate[dateKey] = [...absentSet];
   persistState();
   renderChecklist();
+  _quickSave(); // sync absent status to Firebase
 }
 function restoreAll() {
   absentSet.clear();
@@ -2063,8 +2064,9 @@ function confirmJerseyEdit(){
   var v=document.getElementById('jersey-modal-input').value.trim(), n=parseInt(v,10);
   if(v!==''&&!isNaN(n)&&n>=0&&n<=99){jerseyNumbers[_jEditTarget]=n; _saveJerseys();}
   closeJerseyModal(); renderChecklist(); renderTeams(currentTeams);
+  _quickSave(); // sync jersey numbers to Firebase
 }
-function clearJerseyEdit(){ delete jerseyNumbers[_jEditTarget]; _saveJerseys(); closeJerseyModal(); renderChecklist(); renderTeams(currentTeams); }
+function clearJerseyEdit(){ delete jerseyNumbers[_jEditTarget]; _saveJerseys(); closeJerseyModal(); renderChecklist(); renderTeams(currentTeams); _quickSave(); }
 function closeJerseyModal(){ document.getElementById('jersey-modal').style.display='none'; _jEditTarget=null; }
 
 
@@ -2246,9 +2248,11 @@ function _quickSave() {
   if (!currentTeams || !currentTeams.length) return;
   var _payload = {v:2, teams:currentTeams, scores:scores, matchups:matchups,
     records:records, byeTeams:byeTeams, numRounds:numRounds, gameFormat:gameFormat,
+    absentByDate:absentByDate, jerseyNumbers:jerseyNumbers,
+    activeTournamentDate:activeTournamentDate,
     updatedAt: Date.now()};
   try { localStorage.setItem(STORAGE_KEY+'_live', JSON.stringify(_payload)); } catch(e) {}
-  _fbPush(); // push to Firebase for cross-device sync
+  _fbPush();
 }
 
 function _quickRestore() {
@@ -2696,6 +2700,17 @@ function _fbApply(snapshot) {
   byeTeams     = d.byeTeams  || {};
   if (d.numRounds)  { numRounds  = d.numRounds;  _renderTabs(); }
   if (d.gameFormat)   gameFormat = d.gameFormat;
+  // Sync absent players
+  if (d.absentByDate) {
+    Object.assign(absentByDate, d.absentByDate);
+    var _dateKey = d.activeTournamentDate || activeTournamentDate || '__global__';
+    absentSet = new Set(absentByDate[_dateKey] || []);
+  }
+  // Sync jersey numbers
+  if (d.jerseyNumbers) {
+    Object.assign(jerseyNumbers, d.jerseyNumbers);
+    try { localStorage.setItem(STORAGE_KEY+'_jerseys', JSON.stringify(jerseyNumbers)); } catch(e) {}
+  }
   // Also update localStorage so offline fallback is fresh
   try {
     localStorage.setItem(STORAGE_KEY+'_live', JSON.stringify(
