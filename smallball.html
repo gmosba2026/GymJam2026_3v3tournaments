@@ -545,6 +545,10 @@
 
 
 </style>
+
+<!-- Firebase SDK (real-time cross-device sync) -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 </head>
 <body>
 
@@ -892,7 +896,7 @@ function persistState() {
       activeTournamentDate,
       devSessions: DEV_SESSIONS
     }));
-  } catch(e) { console.warn('persistState failed', e); }
+  } catch(e) { _log('persistState failed', e); }
 }
 
 function loadPersistedState() {
@@ -910,7 +914,7 @@ function loadPersistedState() {
     if (saved.devSessions && Array.isArray(saved.devSessions) && saved.devSessions.length > 0) {
       DEV_SESSIONS = saved.devSessions;
     }
-  } catch(e) { console.warn('loadPersistedState failed', e); }
+  } catch(e) { _log('loadPersistedState failed', e); }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1000,7 +1004,7 @@ function saveTournamentState() {
   t.numRounds = numRounds;
   absentByDate[activeTournamentDate] = [...absentSet];
   persistState();
-  _quickSave();
+  _quickSave(); // also fires _fbPush()
 }
 
 function getTournamentStatus(date) {
@@ -2240,12 +2244,11 @@ function _buildRoundPanels(container) {
 // ═══════════════════════════════════════════════════════════════════════════
 function _quickSave() {
   if (!currentTeams || !currentTeams.length) return;
-  try {
-    localStorage.setItem(STORAGE_KEY+'_live', JSON.stringify({
-      v:2, teams:currentTeams, scores:scores, matchups:matchups,
-      records:records, byeTeams:byeTeams, numRounds:numRounds, gameFormat:gameFormat
-    }));
-  } catch(e) {}
+  var _payload = {v:2, teams:currentTeams, scores:scores, matchups:matchups,
+    records:records, byeTeams:byeTeams, numRounds:numRounds, gameFormat:gameFormat,
+    updatedAt: Date.now()};
+  try { localStorage.setItem(STORAGE_KEY+'_live', JSON.stringify(_payload)); } catch(e) {}
+  _fbPush(); // push to Firebase for cross-device sync
 }
 
 function _quickRestore() {
@@ -2582,7 +2585,7 @@ function _checkAndRefresh() {
       renderLeaderboard();
       console.log('[OSBA] State refreshed at', new Date().toLocaleTimeString(), '- locked scores:', Object.keys(scores).length);
     }
-  } catch(e) { console.warn('[OSBA] Refresh failed:', e); }
+  } catch(e) { _log('[OSBA] Refresh failed:', e); }
 }
 
 function _startRefreshPolling() {
@@ -2618,6 +2621,148 @@ window.addEventListener('pageshow', function(e) {
 // Stop polling when organizer unlocks (they are the source of truth)
 // Restart when they lock
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIREBASE REAL-TIME SYNC
+// ═══════════════════════════════════════════════════════════════════════════
+// SETUP: Replace the values below with your Firebase project config.
+// Get these from: Firebase Console → Project Settings → Your apps → SDK setup
+// Leave as-is if you have not set up Firebase yet (app works offline only).
+// ─────────────────────────────────────────────────────────────────────────
+var _log = function(){try{console.log.apply(console,arguments);}catch(e){}};
+var FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyCKxjo3wmm-17C_XorzBFn-IA1pWLK76ZE",
+  authDomain:        "osba-gymjam.firebaseapp.com",
+  databaseURL:       "https://osba-gymjam-default-rtdb.firebaseio.com",
+  projectId:         "osba-gymjam",
+  storageBucket:     "osba-gymjam.firebasestorage.app",
+  messagingSenderId: "89313982318",
+  appId:             "1:89313982318:web:42ef82655f55d82116f37f",
+  measurementId:     "G-34FWNQDYW5"
+};
+var FIREBASE_PATH = "smallball_live"; // DB path for this page
+var _fbApp = null, _fbDb = null, _fbRef = null, _fbListener = null;
+var _fbEnabled = false;
+var _fbLastWriteTime = 0; // prevents echo — ignores Firebase updates we just wrote
+
+function _fbInit() {
+  if (FIREBASE_CONFIG.apiKey === "YOUR_API_KEY") {
+    _log('[OSBA] Firebase not configured — running in local-only mode.');
+    return false;
+  }
+  try {
+    _fbApp = firebase.initializeApp(FIREBASE_CONFIG, STORAGE_KEY);
+    _fbDb  = firebase.database(_fbApp);
+    _fbRef = _fbDb.ref(FIREBASE_PATH);
+    _fbEnabled = true;
+    _log('[OSBA] Firebase connected — real-time sync enabled.');
+    return true;
+  } catch(e) {
+    _log('[OSBA] Firebase init failed:', e.message);
+    return false;
+  }
+}
+
+// Write current live state to Firebase
+function _fbPush() {
+  if (!_fbEnabled || !_fbRef) return;
+  if (!currentTeams || !currentTeams.length) return;
+  _fbLastWriteTime = Date.now();
+  var payload = {
+    v:2, teams:currentTeams, scores:scores, matchups:matchups,
+    records:records, byeTeams:byeTeams, numRounds:numRounds,
+    gameFormat:gameFormat, updatedAt: Date.now()
+  };
+  _fbRef.set(payload).then(function(){
+    _log('[OSBA] Pushed to Firebase at', new Date().toLocaleTimeString());
+  }).catch(function(e){
+    _log('[OSBA] Firebase push failed:', e.message);
+  });
+}
+
+// Apply incoming Firebase data to the UI
+function _fbApply(snapshot) {
+  var d = snapshot.val();
+  if (!d || !d.teams || !d.teams.length) return;
+  // If we wrote this ourselves in the last 3s, skip to prevent echo
+  if ((Date.now() - _fbLastWriteTime) < 3000) return;
+  // If organizer is active on this device, they are source of truth — skip
+  if (organizerUnlocked) return;
+  // Apply state
+  currentTeams = d.teams;
+  scores       = d.scores    || {};
+  matchups     = d.matchups  || {};
+  records      = d.records   || {};
+  byeTeams     = d.byeTeams  || {};
+  if (d.numRounds)  { numRounds  = d.numRounds;  _renderTabs(); }
+  if (d.gameFormat)   gameFormat = d.gameFormat;
+  // Also update localStorage so offline fallback is fresh
+  try {
+    localStorage.setItem(STORAGE_KEY+'_live', JSON.stringify(
+      {v:2,teams:currentTeams,scores:scores,matchups:matchups,
+       records:records,byeTeams:byeTeams,numRounds:numRounds,gameFormat:gameFormat}
+    ));
+  } catch(e){}
+  // Re-render UI
+  renderTeams(currentTeams);
+  renderChecklist();
+  var _sc = document.getElementById('schedule-container');
+  if (_sc) { _buildRoundPanels(_sc); for(var _r=1;_r<=numRounds;_r++) renderRoundPanel(_r); }
+  document.querySelectorAll('.tab').forEach(function(t,i){t.classList.toggle('active',i===0);});
+  renderLeaderboard();
+  _log('[OSBA] Received Firebase update at', new Date().toLocaleTimeString(),
+    '— updated_at:', d.updatedAt ? new Date(d.updatedAt).toLocaleTimeString() : 'n/a');
+}
+
+// Start listening for real-time updates
+function _fbStartListening() {
+  if (!_fbEnabled || !_fbRef) return;
+  if (_fbListener) { _fbRef.off('value', _fbListener); }
+  _fbListener = _fbRef.on('value', _fbApply, function(e){
+    _log('[OSBA] Firebase read error:', e.message);
+  });
+  _log('[OSBA] Listening for real-time updates on', FIREBASE_PATH);
+}
+
+// Stop listening (when organizer unlocks — they are source of truth)
+function _fbStopListening() {
+  if (_fbRef && _fbListener) {
+    _fbRef.off('value', _fbListener);
+    _fbListener = null;
+  }
+}
+
+// Load initial state from Firebase (on page load)
+function _fbLoad(callback) {
+  if (!_fbEnabled || !_fbRef) { callback(false); return; }
+  _fbRef.once('value').then(function(snapshot) {
+    var d = snapshot.val();
+    if (!d || !d.teams || !d.teams.length) { callback(false); return; }
+    // Only use Firebase data if it's newer than localStorage
+    var localRaw = localStorage.getItem(STORAGE_KEY+'_live');
+    var localUpdatedAt = 0;
+    try { var ld=JSON.parse(localRaw); localUpdatedAt=ld.updatedAt||0; } catch(e){}
+    if (d.updatedAt && d.updatedAt < localUpdatedAt) {
+      _log('[OSBA] Local data is newer than Firebase — using local');
+      callback(false); return;
+    }
+    // Apply Firebase state
+    currentTeams = d.teams;
+    scores       = d.scores    || {};
+    matchups     = d.matchups  || {};
+    records      = d.records   || {};
+    byeTeams     = d.byeTeams  || {};
+    if (d.numRounds)  { numRounds  = d.numRounds; }
+    if (d.gameFormat)   gameFormat = d.gameFormat;
+    _log('[OSBA] Loaded from Firebase — updated_at:',
+      d.updatedAt ? new Date(d.updatedAt).toLocaleTimeString() : 'n/a');
+    callback(true);
+  }).catch(function(e){
+    _log('[OSBA] Firebase load failed:', e.message);
+    callback(false);
+  });
+}
+
 loadPersistedState();   // ← restore tournaments, absentByDate, leaderboard
 _initJerseys(JERSEY_DEFAULTS);
 // Restore numRounds from saved tournament if available
@@ -2629,29 +2774,31 @@ _renderTabs();
 document.getElementById("stat-players").textContent = ALL_PLAYERS.length;
 // hero image display removed from header
 renderChecklist();
-// ── RESTORE SAVED STATE ────────────────────────────────────────────────────
-// Priority: live scores first (most current), then tournament, then fresh start
-if (_quickRestore()) {
-  // Live state restored (scores/teams/matchups) — render it
-  _renderTabs();
-  renderTeams(currentTeams);
-  var _sc = document.getElementById('schedule-container');
-  if (_sc) { _buildRoundPanels(_sc); for(var _r=1;_r<=numRounds;_r++) renderRoundPanel(_r); }
-  document.querySelectorAll('.tab').forEach(function(t,i){t.classList.toggle('active',i===0);});
-  updateTournamentManagerUI();
-  renderLeaderboard();
-} else if (activeTournamentDate && tournaments[activeTournamentDate] &&
-    tournaments[activeTournamentDate].teams &&
-    tournaments[activeTournamentDate].teams.length) {
-  // Tournament manager flow
-  loadAndActivateTournament(activeTournamentDate);
-} else {
-  // Fresh start
-  _initRoundState();
-  rejiggerTeams();
-  updateTournamentManagerUI();
-  renderLeaderboard();
-}
+// ── RESTORE STATE: Firebase first (cross-device), then localStorage, then fresh ──
+_fbInit();
+_fbLoad(function(fbLoaded) {
+  if (fbLoaded) {
+    _initRoundState(); _renderTabs();
+    renderTeams(currentTeams);
+    var _sc = document.getElementById('schedule-container');
+    if (_sc) { _buildRoundPanels(_sc); for(var _r=1;_r<=numRounds;_r++) renderRoundPanel(_r); }
+    document.querySelectorAll('.tab').forEach(function(t,i){t.classList.toggle('active',i===0);});
+    updateTournamentManagerUI(); renderLeaderboard();
+  } else if (_quickRestore()) {
+    _renderTabs(); renderTeams(currentTeams);
+    var _sc2 = document.getElementById('schedule-container');
+    if (_sc2) { _buildRoundPanels(_sc2); for(var _r2=1;_r2<=numRounds;_r2++) renderRoundPanel(_r2); }
+    document.querySelectorAll('.tab').forEach(function(t,i){t.classList.toggle('active',i===0);});
+    updateTournamentManagerUI(); renderLeaderboard();
+  } else if (activeTournamentDate && tournaments[activeTournamentDate] &&
+      tournaments[activeTournamentDate].teams && tournaments[activeTournamentDate].teams.length) {
+    loadAndActivateTournament(activeTournamentDate);
+  } else {
+    _initRoundState(); rejiggerTeams(); updateTournamentManagerUI(); renderLeaderboard();
+  }
+  if (!organizerUnlocked) _fbStartListening();
+  if (!organizerUnlocked) _startRefreshPolling();
+});
 
 // Start auto-refresh for non-organizer viewers
 if (!organizerUnlocked) _startRefreshPolling();
