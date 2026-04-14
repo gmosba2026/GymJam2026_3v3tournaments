@@ -2,6 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Gym Jam U15/16 — 3v3 Ladder Tournament</title>
 
@@ -1614,6 +1617,7 @@ function lockOrganizer() {
   var _pw=document.getElementById('player-pool-wrap');if(_pw)_pw.style.display='none';
   var _mb2=document.getElementById('manual-mode-btn');if(_mb2){_mb2.style.display='none';_mb2.classList.remove('active');_mb2.textContent='✏️ Manual Mode';}
   var _sb2=document.getElementById('roster-sort-bar');if(_sb2)_sb2.classList.remove('visible');
+  _startRefreshPolling();
   for(var _r2=1;_r2<=4;_r2++) renderRoundPanel(_r2);
   showToast('Organizer mode locked');
 }
@@ -2203,6 +2207,90 @@ function doPrint(mode) {
   setTimeout(function(){ pw.print(); }, 400);
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTO-REFRESH ENGINE
+// Polls localStorage every 10s + triggers on page focus/visibility change
+// Ensures scores stay fresh without requiring a manual reload
+// ═══════════════════════════════════════════════════════════════════════════
+var _refreshTimer = null;
+var _lastRefreshHash = '';
+
+function _stateHash(d) {
+  if (!d) return '';
+  try {
+    var scores = d.scores || {};
+    var locked = 0;
+    Object.values(scores).forEach(function(r) {
+      Object.values(r).forEach(function(g) { if (g && g.locked) locked++; });
+    });
+    return (d.numRounds||0) + '_' + (d.gameFormat||'') + '_' + locked + '_' +
+           (d.teams ? d.teams.length : 0);
+  } catch(e) { return ''; }
+}
+
+function _checkAndRefresh() {
+  // Don't wipe organizer's in-progress state
+  if (organizerUnlocked) return;
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY + '_live');
+    if (!raw) return;
+    var d = JSON.parse(raw);
+    var h = _stateHash(d);
+    if (h === _lastRefreshHash) return; // nothing changed
+    _lastRefreshHash = h;
+    // Apply new state
+    if (d && d.teams && d.teams.length) {
+      currentTeams = d.teams;
+      scores       = d.scores    || {};
+      matchups     = d.matchups  || {};
+      records      = d.records   || {};
+      byeTeams     = d.byeTeams  || {};
+      if (d.numRounds)   { numRounds   = d.numRounds;   _renderTabs(); }
+      if (d.gameFormat)  gameFormat  = d.gameFormat;
+      renderTeams(currentTeams);
+      var _sc = document.getElementById('schedule-container');
+      if (_sc) { _buildRoundPanels(_sc); for (var _r=1;_r<=numRounds;_r++) renderRoundPanel(_r); }
+      document.querySelectorAll('.tab').forEach(function(t,i){ t.classList.toggle('active',i===0); });
+      renderLeaderboard();
+      console.log('[OSBA] State refreshed at', new Date().toLocaleTimeString(), '- locked scores:', Object.keys(scores).length);
+    }
+  } catch(e) { console.warn('[OSBA] Refresh failed:', e); }
+}
+
+function _startRefreshPolling() {
+  if (_refreshTimer) clearInterval(_refreshTimer);
+  _lastRefreshHash = _stateHash(null); // reset so first poll always applies
+  _refreshTimer = setInterval(function() {
+    if (!document.hidden) _checkAndRefresh();
+  }, 10000); // every 10 seconds
+}
+
+function _stopRefreshPolling() {
+  if (_refreshTimer) { clearInterval(_refreshTimer); _refreshTimer = null; }
+}
+
+// Refresh immediately on tab/app focus
+document.addEventListener('visibilitychange', function() {
+  if (!document.hidden && !organizerUnlocked) {
+    _checkAndRefresh();
+    _startRefreshPolling(); // restart clean interval
+  }
+});
+window.addEventListener('focus', function() {
+  if (!organizerUnlocked) _checkAndRefresh();
+});
+window.addEventListener('pageshow', function(e) {
+  // Handles iOS "back-forward cache" (BFCache) restores
+  if (e.persisted && !organizerUnlocked) {
+    _checkAndRefresh();
+    _startRefreshPolling();
+  }
+});
+
+// Stop polling when organizer unlocks (they are the source of truth)
+// Restart when they lock
+
 loadPersistedState();   // ← restore tournaments, absentByDate, leaderboard
 _initJerseys(JERSEY_DEFAULTS);
 // Restore numRounds from saved tournament if available
@@ -2235,6 +2323,8 @@ if (_quickRestore()) {
   updateTournamentManagerUI();
   renderLeaderboard();
 }
+// Start auto-refresh for non-organizer viewers
+if (!organizerUnlocked) _startRefreshPolling();
 </script>
 <!-- PRINT MENU MODAL -->
 <div id="print-menu-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.82);z-index:6000;align-items:center;justify-content:center;padding:20px;">

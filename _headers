@@ -1,0 +1,15 @@
+# Render.com _headers — cache control for OSBA GymJam site
+# HTML files: always fetch fresh (scores change during tournament)
+/*.html
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+# Root index
+/
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+# Static assets (images, fonts, CSS) can be cached longer
+# (none currently since everything is inline base64)
