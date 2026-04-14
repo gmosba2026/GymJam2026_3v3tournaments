@@ -1197,7 +1197,7 @@ function togglePlayer(idx) {
   absentByDate[dateKey] = [...absentSet];
   persistState();
   renderChecklist();
-  _fbPushMeta(); // sync attendance to Firebase immediately
+  _fbPushAll(); // sync to Firebase
 }
 function restoreAll() {
   absentSet.clear();
@@ -2064,7 +2064,7 @@ function confirmJerseyEdit(){
   var v=document.getElementById('jersey-modal-input').value.trim(), n=parseInt(v,10);
   if(v!==''&&!isNaN(n)&&n>=0&&n<=99){jerseyNumbers[_jEditTarget]=n; _saveJerseys();}
   closeJerseyModal(); renderChecklist(); renderTeams(currentTeams);
-  _fbPushMeta(); _quickSave(); // sync jersey to Firebase
+  _fbPushAll(); // sync jersey to Firebase
 }
 function clearJerseyEdit(){ delete jerseyNumbers[_jEditTarget]; _saveJerseys(); closeJerseyModal(); renderChecklist(); renderTeams(currentTeams); _quickSave(); }
 function closeJerseyModal(){ document.getElementById('jersey-modal').style.display='none'; _jEditTarget=null; }
@@ -2252,7 +2252,7 @@ function _quickSave() {
     activeTournamentDate:activeTournamentDate,
     updatedAt: Date.now()};
   try { localStorage.setItem(STORAGE_KEY+'_live', JSON.stringify(_payload)); } catch(e) {}
-  _fbPush();
+  _fbPushAll();
 }
 
 function _quickRestore() {
@@ -2626,14 +2626,10 @@ window.addEventListener('pageshow', function(e) {
 // Restart when they lock
 
 
+
 // ═══════════════════════════════════════════════════════════════════════════
-// FIREBASE REAL-TIME SYNC
+// FIREBASE REAL-TIME SYNC — Single path, UUID echo prevention
 // ═══════════════════════════════════════════════════════════════════════════
-// SETUP: Replace the values below with your Firebase project config.
-// Get these from: Firebase Console → Project Settings → Your apps → SDK setup
-// Leave as-is if you have not set up Firebase yet (app works offline only).
-// ─────────────────────────────────────────────────────────────────────────
-var _log = function(){try{console.log.apply(console,arguments);}catch(e){}};
 var FIREBASE_CONFIG = {
   apiKey:            "AIzaSyCKxjo3wmm-17C_XorzBFn-IA1pWLK76ZE",
   authDomain:        "osba-gymjam.firebaseapp.com",
@@ -2644,23 +2640,22 @@ var FIREBASE_CONFIG = {
   appId:             "1:89313982318:web:42ef82655f55d82116f37f",
   measurementId:     "G-34FWNQDYW5"
 };
-var FIREBASE_PATH = "smallball_live"; // DB path for this page
+var FIREBASE_PATH = "smallball_live";
 var _fbApp = null, _fbDb = null, _fbRef = null, _fbListener = null;
 var _fbEnabled = false;
-var _fbLastWriteTime = 0; // prevents echo — ignores Firebase updates we just wrote
+var _myWriteId = null; // our last write ID — skip our own echoes
+
+function _fbUid() {
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
 
 function _fbInit() {
-  if (FIREBASE_CONFIG.apiKey === "YOUR_API_KEY") {
-    _log('[OSBA] Firebase not configured — running in local-only mode.');
-    return false;
-  }
   try {
     _fbApp = firebase.initializeApp(FIREBASE_CONFIG, STORAGE_KEY);
     _fbDb  = firebase.database(_fbApp);
     _fbRef = _fbDb.ref(FIREBASE_PATH);
     _fbEnabled = true;
-    _fbInitMeta();
-    _log('[OSBA] Firebase connected — real-time sync enabled.');
+    _log('[OSBA] Firebase connected on', FIREBASE_PATH);
     return true;
   } catch(e) {
     _log('[OSBA] Firebase init failed:', e.message);
@@ -2668,99 +2663,54 @@ function _fbInit() {
   }
 }
 
-// Write current live state to Firebase
-function _fbPush() {
+// Push EVERYTHING to Firebase — called after any change
+function _fbPushAll() {
   if (!_fbEnabled || !_fbRef) return;
-  if (!currentTeams || !currentTeams.length) return;
-  _fbLastWriteTime = Date.now();
+  _myWriteId = _fbUid();
+  var _dateKey = activeTournamentDate || '__global__';
   var payload = {
-    v:2, teams:currentTeams, scores:scores, matchups:matchups,
-    records:records, byeTeams:byeTeams, numRounds:numRounds,
-    gameFormat:gameFormat, updatedAt: Date.now()
+    writeId:    _myWriteId,
+    updatedAt:  Date.now(),
+    teams:      currentTeams  || [],
+    scores:     scores        || {},
+    matchups:   matchups      || {},
+    records:    records       || {},
+    byeTeams:   byeTeams      || {},
+    numRounds:  numRounds,
+    gameFormat: gameFormat,
+    absentList: absentByDate[_dateKey] ? Array.from(absentByDate[_dateKey]) : Array.from(absentSet),
+    jerseyNumbers: jerseyNumbers || {},
+    activeTournamentDate: activeTournamentDate || null
   };
-  _fbRef.set(payload).then(function(){
-    _log('[OSBA] Pushed to Firebase at', new Date().toLocaleTimeString());
-  }).catch(function(e){
-    _log('[OSBA] Firebase push failed:', e.message);
-  });
+  _fbRef.set(payload).catch(function(e){ _log('[OSBA] Push failed:', e.message); });
+  // Also save to localStorage
+  try { localStorage.setItem(STORAGE_KEY+'_live', JSON.stringify(payload)); } catch(e) {}
 }
 
-// Apply incoming Firebase data to the UI
+// Receive update from Firebase — apply to UI
 function _fbApply(snapshot) {
   var d = snapshot.val();
-  if (!d || !d.teams || !d.teams.length) return;
-  // If we wrote this ourselves in the last 3s, skip to prevent echo
-  if ((Date.now() - _fbLastWriteTime) < 3000) return;
-  // If organizer is active on this device, they are source of truth — skip
-  if (organizerUnlocked) return;
-  // Apply state
-  currentTeams = d.teams;
-  scores       = d.scores    || {};
-  matchups     = d.matchups  || {};
-  records      = d.records   || {};
-  byeTeams     = d.byeTeams  || {};
-  if (d.numRounds)  { numRounds  = d.numRounds;  _renderTabs(); }
-  if (d.gameFormat)   gameFormat = d.gameFormat;
-  // Sync absent players
-  if (d.absentByDate) {
-    Object.assign(absentByDate, d.absentByDate);
-    var _dateKey = d.activeTournamentDate || activeTournamentDate || '__global__';
-    absentSet = new Set(absentByDate[_dateKey] || []);
-  }
-  // Sync jersey numbers
-  if (d.jerseyNumbers) {
-    Object.assign(jerseyNumbers, d.jerseyNumbers);
-    try { localStorage.setItem(STORAGE_KEY+'_jerseys', JSON.stringify(jerseyNumbers)); } catch(e) {}
-  }
-  // Also update localStorage so offline fallback is fresh
-  try {
-    localStorage.setItem(STORAGE_KEY+'_live', JSON.stringify(
-      {v:2,teams:currentTeams,scores:scores,matchups:matchups,
-       records:records,byeTeams:byeTeams,numRounds:numRounds,gameFormat:gameFormat}
-    ));
-  } catch(e){}
-  // Re-render UI
-  renderTeams(currentTeams);
-  renderChecklist();
-  var _sc = document.getElementById('schedule-container');
-  if (_sc) { _buildRoundPanels(_sc); for(var _r=1;_r<=numRounds;_r++) renderRoundPanel(_r); }
-  document.querySelectorAll('.tab').forEach(function(t,i){t.classList.toggle('active',i===0);});
-  renderLeaderboard();
-  _log('[OSBA] Received Firebase update at', new Date().toLocaleTimeString(),
-    '— updated_at:', d.updatedAt ? new Date(d.updatedAt).toLocaleTimeString() : 'n/a');
-}
-
-// ── FIREBASE META SYNC (attendance + jersey numbers) ─────────────────────
-// Separate from live state so attendance syncs even before teams are generated
-var _fbMetaRef = null, _fbMetaListener = null;
-
-function _fbInitMeta() {
-  if (!_fbEnabled || !_fbDb) return;
-  _fbMetaRef = _fbDb.ref(FIREBASE_PATH + '_meta');
-}
-
-function _fbPushMeta() {
-  if (!_fbEnabled || !_fbMetaRef) return;
-  _fbLastWriteTime = Date.now();
-  var _dateKey = activeTournamentDate || '__global__';
-  _fbMetaRef.set({
-    absentByDate: absentByDate,
-    jerseyNumbers: jerseyNumbers,
-    activeTournamentDate: activeTournamentDate || null,
-    updatedAt: Date.now()
-  }).catch(function(e){ _log('[OSBA] Meta push failed:', e.message); });
-}
-
-function _fbApplyMeta(snapshot) {
-  var d = snapshot.val();
   if (!d) return;
-  if ((Date.now() - _fbLastWriteTime) < 2000) return;
+  // Skip our own echo
+  if (d.writeId && d.writeId === _myWriteId) return;
+  // Organizer is source of truth on their device
   if (organizerUnlocked) return;
-  // Apply absent players
-  if (d.absentByDate) {
-    Object.assign(absentByDate, d.absentByDate);
-    var _dateKey = d.activeTournamentDate || activeTournamentDate || '__global__';
-    absentSet = new Set(absentByDate[_dateKey] || []);
+
+  // Apply all state
+  if (d.teams && d.teams.length) {
+    currentTeams = d.teams;
+    scores       = d.scores    || {};
+    matchups     = d.matchups  || {};
+    records      = d.records   || {};
+    byeTeams     = d.byeTeams  || {};
+    if (d.numRounds)   { numRounds  = d.numRounds; }
+    if (d.gameFormat)    gameFormat = d.gameFormat;
+  }
+  // Apply attendance
+  if (d.absentList !== undefined) {
+    absentSet = new Set(d.absentList || []);
+    var _dk = d.activeTournamentDate || activeTournamentDate || '__global__';
+    absentByDate[_dk] = d.absentList || [];
     try { persistState(); } catch(e) {}
   }
   // Apply jersey numbers
@@ -2768,24 +2718,63 @@ function _fbApplyMeta(snapshot) {
     Object.assign(jerseyNumbers, d.jerseyNumbers);
     try { localStorage.setItem(STORAGE_KEY+'_jerseys', JSON.stringify(jerseyNumbers)); } catch(e) {}
   }
+  // Save fresh state to localStorage
+  try { localStorage.setItem(STORAGE_KEY+'_live', JSON.stringify(d)); } catch(e) {}
+
+  // Re-render everything
+  _renderTabs();
   renderChecklist();
-  renderTeams(currentTeams);
-  _log('[OSBA] Meta update received at', new Date().toLocaleTimeString());
-}
-
-function _fbStartMetaListening() {
-  if (!_fbEnabled || !_fbMetaRef) return;
-  if (_fbMetaListener) { _fbMetaRef.off('value', _fbMetaListener); }
-  _fbMetaListener = _fbMetaRef.on('value', _fbApplyMeta, function(e){
-    _log('[OSBA] Meta listen error:', e.message);
-  });
-}
-
-function _fbStopMetaListening() {
-  if (_fbMetaRef && _fbMetaListener) {
-    _fbMetaRef.off('value', _fbMetaListener);
-    _fbMetaListener = null;
+  if (d.teams && d.teams.length) renderTeams(currentTeams);
+  var _sc = document.getElementById('schedule-container');
+  if (_sc && d.teams && d.teams.length) {
+    _buildRoundPanels(_sc);
+    for (var _r=1;_r<=numRounds;_r++) renderRoundPanel(_r);
   }
+  document.querySelectorAll('.tab').forEach(function(t,i){t.classList.toggle('active',i===0);});
+  renderLeaderboard();
+  _log('[OSBA] Update from Firebase at', new Date().toLocaleTimeString());
+}
+
+function _fbStartListening() {
+  if (!_fbEnabled || !_fbRef) return;
+  if (_fbListener) _fbRef.off('value', _fbListener);
+  _fbListener = _fbRef.on('value', _fbApply, function(e){
+    _log('[OSBA] Listen error:', e.message);
+  });
+  _log('[OSBA] Listening on', FIREBASE_PATH);
+}
+
+function _fbStopListening() {
+  if (_fbRef && _fbListener) { _fbRef.off('value', _fbListener); _fbListener = null; }
+}
+
+// Load initial data from Firebase (on page load)
+function _fbLoad(callback) {
+  if (!_fbEnabled || !_fbRef) { callback(false); return; }
+  _fbRef.once('value').then(function(snapshot) {
+    var d = snapshot.val();
+    if (!d) { callback(false); return; }
+    // Check freshness vs localStorage
+    var localRaw = localStorage.getItem(STORAGE_KEY+'_live');
+    var localAt = 0;
+    try { localAt = JSON.parse(localRaw).updatedAt || 0; } catch(e) {}
+    if (d.updatedAt && d.updatedAt < localAt) { _log('[OSBA] Local is newer'); callback(false); return; }
+    // Apply
+    if (d.teams && d.teams.length) {
+      currentTeams = d.teams; scores = d.scores||{}; matchups = d.matchups||{};
+      records = d.records||{}; byeTeams = d.byeTeams||{};
+      if (d.numRounds) numRounds = d.numRounds;
+      if (d.gameFormat) gameFormat = d.gameFormat;
+    }
+    if (d.absentList !== undefined) {
+      absentSet = new Set(d.absentList || []);
+      var _dk = d.activeTournamentDate || '__global__';
+      absentByDate[_dk] = d.absentList || [];
+    }
+    if (d.jerseyNumbers) Object.assign(jerseyNumbers, d.jerseyNumbers);
+    _log('[OSBA] Loaded from Firebase, updated:', d.updatedAt ? new Date(d.updatedAt).toLocaleTimeString() : 'n/a');
+    callback(true);
+  }).catch(function(e){ _log('[OSBA] Load failed:', e.message); callback(false); });
 }
 
 // Start listening for real-time updates
@@ -2795,7 +2784,6 @@ function _fbStartListening() {
   _fbListener = _fbRef.on('value', _fbApply, function(e){
     _log('[OSBA] Firebase read error:', e.message);
   });
-  _fbStartMetaListening();
   _log('[OSBA] Listening for real-time updates on', FIREBASE_PATH);
 }
 
@@ -2805,7 +2793,6 @@ function _fbStopListening() {
     _fbRef.off('value', _fbListener);
     _fbListener = null;
   }
-  _fbStopMetaListening();
 }
 
 // Load initial state from Firebase (on page load)
